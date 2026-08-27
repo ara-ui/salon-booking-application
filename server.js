@@ -10,6 +10,9 @@ const { errorHandler } = require('./middleware/error.middleware');
 
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
+const serviceRoutes = require('./routes/service.routes');
+const staffRoutes = require('./routes/staff.routes');
+const appointmentRoutes = require('./routes/appointment.routes');
 
 
 const app = express();
@@ -25,6 +28,10 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/salon-settings', serviceRoutes.settingsRouter);
+app.use('/api/staff', staffRoutes);
+app.use('/api/appointments', appointmentRoutes);
 
 // 404 fallback
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
