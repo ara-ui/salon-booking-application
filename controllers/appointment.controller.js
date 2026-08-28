@@ -1,8 +1,11 @@
-const { Service, Staff, User, SalonSettings, Appointment } = require('../models');
+const { Service, Staff, User, SalonSettings, Appointment, Invoice } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
 const { dayKeyFromDate, getAvailableSlots, timeToMinutes, minutesToTime } = require('../utils/availability');
 const { sendBookingConfirmation, sendCancellationNotice } = require('../utils/email');
 const { hoursUntil } = require('../utils/datetime');
+const { INVOICE_DIR } = require('../utils/invoicePdf');
+const fs = require('fs');
+const path = require('path');
 
 const CANCELLATION_WINDOW_HOURS = 2; // no reschedule/cancel within this many hours of the appointment
 
@@ -251,6 +254,25 @@ async function updateAppointmentStatus(req, res) {
   res.json(appointment);
 }
 
+// Streams the invoice PDF. Viewable by the customer who owns the appointment
+// or an admin — same access pattern as the appointment detail view.
+async function downloadInvoice(req, res) {
+  const appointment = await Appointment.findByPk(req.params.id);
+  if (!appointment) throw new AppError(404, 'Appointment not found');
+
+  const isOwner = req.user.role === 'customer' && appointment.customerId === req.user.id;
+  const isAdmin = req.user.role === 'admin';
+  if (!isOwner && !isAdmin) throw new AppError(403, 'You do not have permission to view this invoice');
+
+  const invoice = await Invoice.findOne({ where: { appointmentId: appointment.id } });
+  if (!invoice) throw new AppError(404, 'No invoice has been generated for this appointment yet');
+
+  const filePath = path.join(INVOICE_DIR, `invoice-appointment-${appointment.id}.pdf`);
+  if (!fs.existsSync(filePath)) throw new AppError(404, 'Invoice file not found on disk');
+
+  res.download(filePath, `invoice-${appointment.id}.pdf`);
+}
+
 module.exports = {
   getAvailableSlotsHandler,
   bookAppointment,
@@ -261,4 +283,5 @@ module.exports = {
   rescheduleAppointment,
   cancelAppointment,
   updateAppointmentStatus,
+  downloadInvoice,
 };

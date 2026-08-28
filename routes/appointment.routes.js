@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   getAvailableSlotsHandler, bookAppointment, getAppointmentById, getMyAppointments,
   getStaffAppointments, getAllAppointments, rescheduleAppointment, cancelAppointment,
-  updateAppointmentStatus,
+  updateAppointmentStatus, downloadInvoice,
 } = require('../controllers/appointment.controller');
 const { authenticate, requireRole } = require('../middleware/auth.middleware');
 const { asyncHandler } = require('../middleware/error.middleware');
@@ -229,5 +229,28 @@ router.put('/:id/cancel', authenticate, asyncHandler(cancelAppointment));
  *       404: { description: Not found }
  */
 router.put('/:id/status', authenticate, asyncHandler(updateAppointmentStatus));
+
+/**
+ * @swagger
+ * /appointments/{id}/invoice:
+ *   get:
+ *     summary: Download the PDF invoice for a paid appointment
+ *     description: Available once payment succeeds and the webhook has generated the invoice. Viewable by the owning customer or an admin.
+ *     tags: [Appointments]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: PDF file
+ *         content:
+ *           application/pdf: {}
+ *       403: { description: Not your appointment }
+ *       404: { description: Not found, or invoice not generated yet }
+ */
+router.get('/:id/invoice', authenticate, asyncHandler(downloadInvoice));
 
 module.exports = router;
