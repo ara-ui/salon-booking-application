@@ -82,7 +82,7 @@ router.get('/available-slots', asyncHandler(getAvailableSlotsHandler));
  *               startTime: { type: string, example: "10:00" }
  *     responses:
  *       201: { description: Booking created }
- *       400: { description: Missing fields }
+ *       400: { description: Missing fields, or requested time is outside salon/staff working hours }
  *       404: { description: Service or staff not found }
  *       409: { description: Slot no longer available }
  */
@@ -177,7 +177,7 @@ router.get('/:id', authenticate, asyncHandler(getAppointmentById));
  *               startTime: { type: string }
  *     responses:
  *       200: { description: Rescheduled appointment }
- *       400: { description: Too close to start time, or invalid status }
+ *       400: { description: Too close to start time, invalid status, missing fields, or requested time is outside salon/staff working hours }
  *       403: { description: Not your appointment }
  *       409: { description: New slot not available }
  */
@@ -208,6 +208,7 @@ router.put('/:id/cancel', authenticate, asyncHandler(cancelAppointment));
  * /appointments/{id}/status:
  *   put:
  *     summary: Mark an appointment completed (assigned staff member, or admin)
+ *     description: If the appointment is marked completed and is already paid, this generates the PDF invoice (see GET /appointments/{id}/invoice).
  *     tags: [Appointments]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -234,8 +235,8 @@ router.put('/:id/status', authenticate, asyncHandler(updateAppointmentStatus));
  * @swagger
  * /appointments/{id}/invoice:
  *   get:
- *     summary: Download the PDF invoice for a paid appointment
- *     description: Available once payment succeeds and the webhook has generated the invoice. Viewable by the owning customer or an admin.
+ *     summary: Download the PDF invoice for a paid, completed appointment
+ *     description: Available once the appointment is BOTH marked completed AND paid (whichever happens second triggers generation). Viewable by the owning customer or an admin.
  *     tags: [Appointments]
  *     security: [{ bearerAuth: [] }]
  *     parameters:

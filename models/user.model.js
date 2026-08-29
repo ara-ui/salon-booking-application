@@ -35,6 +35,21 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: true,
     },
+    // --- Customer preferences (only meaningful for role='customer', but kept
+    // on User rather than a separate table since they're simple scalar values) ---
+    preferredStaffId: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // FK to Staff.id, set up in models/index.js
+    },
+    reminderOptIn: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true, // the reminder cron job checks this before emailing
+    },
+    preferenceNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true, // free text — allergies, styling notes, anything a dropdown can't capture
+    },
   }, {
     tableName: 'users',
     timestamps: true,

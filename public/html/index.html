@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Glow Salon — Sign in</title>
+<link rel="stylesheet" href="../css/style.css" />
+</head>
+<body>
+<header><h1>Glow Salon</h1></header>
+<main style="max-width: 420px;">
+  <div class="tabs">
+    <button id="tabLogin" class="active">Login</button>
+    <button id="tabRegister">Register</button>
+  </div>
+
+  <div class="card" id="loginCard">
+    <h2>Login</h2>
+    <form id="loginForm">
+      <label>Email</label>
+      <input type="email" id="loginEmail" required />
+      <label>Password</label>
+      <input type="password" id="loginPassword" required />
+      <button type="submit">Login</button>
+    </form>
+    <p style="font-size:12px;color:#888">Staff and admin accounts are created by an admin — log in here once you have one.</p>
+  </div>
+
+  <div class="card" id="registerCard" style="display:none">
+    <h2>Register (customer)</h2>
+    <form id="registerForm">
+      <label>Name</label>
+      <input type="text" id="regName" required />
+      <label>Email</label>
+      <input type="email" id="regEmail" required />
+      <label>Phone</label>
+      <input type="text" id="regPhone" />
+      <label>Password</label>
+      <input type="password" id="regPassword" required minlength="6" />
+      <button type="submit">Create account</button>
+    </form>
+  </div>
+
+  <div id="msg"></div>
+</main>
+
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+</body>
+</html>

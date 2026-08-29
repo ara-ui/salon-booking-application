@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Glow Salon — My Account</title>
+<link rel="stylesheet" href="../css/style.css" />
+<link rel="stylesheet" href="../css/customer.css" />
+</head>
+<body>
+<header>
+  <h1>Glow Salon</h1>
+  <nav><span id="welcome"></span><span class="logout" onclick="logout()">Logout</span></nav>
+</header>
+<main>
+
+  <div class="card">
+    <h2>Book an appointment</h2>
+    <div id="services" class="grid"></div>
+  </div>
+
+  <div class="card" id="bookingPanel" style="display:none">
+    <h2>Book: <span id="bookingServiceName"></span></h2>
+    <label>Staff member</label>
+    <select id="staffSelect"></select>
+    <label>Date</label>
+    <input type="date" id="bookingDate" />
+    <button id="loadSlotsBtn">Find available times</button>
+    <div id="slots" style="margin-top:10px"></div>
+    <div id="bookingMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>My appointments</h2>
+    <table>
+      <thead><tr><th>Service</th><th>Staff</th><th>Date</th><th>Time</th><th>Status</th><th>Payment</th><th>Actions</th></tr></thead>
+      <tbody id="apptRows"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="detailPanel" style="display:none"></div>
+
+  <div class="card">
+    <h2>My preferences</h2>
+    <label>Preferred staff member</label>
+    <select id="prefStaffSelect"><option value="">No preference</option></select>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+      <input type="checkbox" id="prefReminderOptIn" style="width:auto" /> Send me reminder emails
+    </label>
+    <label>Notes (allergies, styling preferences, anything else)</label>
+    <textarea id="prefNotes" rows="3"></textarea>
+    <button onclick="savePreferences()">Save preferences</button>
+    <div id="prefMsg"></div>
+  </div>
+
+</main>
+
+<script src="../js/api.js"></script>
+<script src="../js/customer.js"></script>
+</body>
+</html>

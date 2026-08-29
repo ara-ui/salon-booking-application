@@ -1,0 +1,14 @@
+/* Styles specific to customer.html — the time-slot picker used when booking
+   or rescheduling. Everything else on this page uses the shared style.css. */
+.slot-btn {
+  display: inline-block;
+  padding: 6px 10px;
+  margin: 4px 4px 0 0;
+  border: 1px solid #7a4d3a;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  background: #fff;
+  color: #7a4d3a;
+}
+.slot-btn.selected { background: #7a4d3a; color: #fff; }

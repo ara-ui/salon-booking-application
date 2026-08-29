@@ -16,6 +16,9 @@ const Invoice = require('./invoice.model')(sequelize);
 User.hasOne(Staff, { foreignKey: 'userId', onDelete: 'CASCADE' });
 Staff.belongsTo(User, { foreignKey: 'userId' });
 
+// A customer can optionally have a preferred Staff member
+User.belongsTo(Staff, { foreignKey: 'preferredStaffId', as: 'preferredStaff' });
+
 // Staff <-> Service (many-to-many)
 Staff.belongsToMany(Service, { through: StaffService, foreignKey: 'staffId', otherKey: 'serviceId' });
 Service.belongsToMany(Staff, { through: StaffService, foreignKey: 'serviceId', otherKey: 'staffId' });

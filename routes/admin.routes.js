@@ -29,6 +29,7 @@ const { asyncHandler } = require('../middleware/error.middleware');
  *               properties:
  *                 date: { type: string }
  *                 remindersSent: { type: integer }
+ *                 skippedOptOut: { type: integer, description: "Customers who had reminderOptIn set to false" }
  *       403: { description: Not an admin }
  */
 router.post('/run-reminders', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {

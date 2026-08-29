@@ -1,0 +1,5 @@
+/* Styles specific to staff.html. The page currently only uses shared
+   elements (.card, table, .badge, buttons, textarea) already covered by
+   style.css, so there's nothing page-specific to add yet. This file is kept
+   as a placeholder so future staff-page-only styling has a home without
+   growing style.css or admin.css/customer.css. */

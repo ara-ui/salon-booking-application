@@ -67,6 +67,19 @@ function removeConflicts(candidateSlots, existingBookings) {
 }
 
 /**
+ * Checks whether a specific [startTime, endTime) slot falls entirely inside
+ * hours that are open in BOTH salonHours and staffHours. Reuses
+ * intersectRanges so the "must be open in both" rule is defined in exactly
+ * one place, shared with getAvailableSlots.
+ */
+function isSlotWithinOpenHours({ salonHours, staffHours, startTime, endTime }) {
+  const openRanges = intersectRanges(salonHours, staffHours);
+  const startMin = timeToMinutes(startTime);
+  const endMin = timeToMinutes(endTime);
+  return openRanges.some((r) => startMin >= r.start && endMin <= r.end);
+}
+
+/**
  * Main entry point.
  * @param {Object} params
  * @param {Array}  params.salonHours   - salon's ranges for that day: [{start,end}]
@@ -90,5 +103,6 @@ module.exports = {
   intersectRanges,
   generateCandidateSlots,
   removeConflicts,
+  isSlotWithinOpenHours,
   getAvailableSlots,
 };

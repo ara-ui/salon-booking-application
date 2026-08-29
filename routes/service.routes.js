@@ -114,10 +114,11 @@ const settingsRouter = express.Router();
  * @swagger
  * /salon-settings:
  *   get:
- *     summary: Get the salon's working hours (public)
+ *     summary: Get the salon's working hours and special-day overrides (public)
  *     tags: [Services]
  *     responses:
- *       200: { description: Salon working hours }
+ *       200:
+ *         description: Salon working hours + special dates (specialDates is always an array, never null)
  *       404: { description: Not configured yet }
  */
 settingsRouter.get('/', asyncHandler(getSalonSettings));
@@ -126,7 +127,8 @@ settingsRouter.get('/', asyncHandler(getSalonSettings));
  * @swagger
  * /salon-settings:
  *   put:
- *     summary: Set the salon's working hours (admin only)
+ *     summary: Set the salon's working hours and/or special-day overrides (admin only)
+ *     description: specialDates is optional — omit it to leave the existing special days untouched while only updating workingHours.
  *     tags: [Services]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -139,8 +141,18 @@ settingsRouter.get('/', asyncHandler(getSalonSettings));
  *               workingHours:
  *                 type: object
  *                 example: { "mon": [{"start":"09:00","end":"18:00"}], "tue": [{"start":"09:00","end":"18:00"}] }
+ *               specialDates:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     date: { type: string, example: "2026-12-25" }
+ *                     type: { type: string, enum: [closed, special, early_close] }
+ *                     start: { type: string, example: "09:00" }
+ *                     end: { type: string, example: "14:00" }
  *     responses:
  *       200: { description: Updated settings }
+ *       400: { description: Missing workingHours, or specialDates is not an array }
  *       403: { description: Not an admin }
  */
 settingsRouter.put('/', authenticate, requireRole('admin'), asyncHandler(updateSalonSettings));

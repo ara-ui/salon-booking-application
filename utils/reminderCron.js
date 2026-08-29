@@ -22,7 +22,14 @@ async function runReminderJob() {
     include: [{ model: User, as: 'customer' }, { model: Service }],
   });
 
+  let sent = 0;
+  let skippedOptOut = 0;
+
   for (const appt of appointments) {
+    if (appt.customer.reminderOptIn === false) {
+      skippedOptOut++;
+      continue;
+    }
     await sendReminder({
       to: appt.customer.email,
       customerName: appt.customer.name,
@@ -30,9 +37,10 @@ async function runReminderJob() {
       date: appt.date,
       startTime: appt.startTime,
     });
+    sent++;
   }
 
-  return { date, remindersSent: appointments.length };
+  return { date, remindersSent: sent, skippedOptOut };
 }
 
 // Runs once a day at 08:00 server time. Registered from server.js on startup.

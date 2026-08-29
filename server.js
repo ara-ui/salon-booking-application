@@ -31,6 +31,14 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), han
 
 app.use(express.json());
 
+
+// Frontend — plain HTML/CSS/JS, 3 role-based pages (index/customer/staff/admin)
+app.use(express.static('public'));
+
+app.get('/', (req, res) => {
+  res.redirect('/html/index.html');
+});
+
 // Swagger docs — visit http://localhost:5000/api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 

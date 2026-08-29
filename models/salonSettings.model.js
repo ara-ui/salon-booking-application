@@ -13,6 +13,16 @@ module.exports = (sequelize) => {
       type: DataTypes.JSON,
       allowNull: false,
     },
+    // Holidays / early closings / one-off special hours for a specific date.
+    // Shape: [{ date: 'YYYY-MM-DD', type: 'closed'|'special'|'early_close',
+    //           start?: 'HH:MM', end?: 'HH:MM' }]. Nullable + no DB-level
+    // default (kept application-side) to avoid MySQL JSON DEFAULT quirks on
+    // ALTER TABLE for existing installs; code always treats a missing value
+    // as an empty array.
+    specialDates: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
   }, {
     tableName: 'salon_settings',
     timestamps: true,

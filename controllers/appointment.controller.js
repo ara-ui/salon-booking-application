@@ -1,9 +1,10 @@
 const { Service, Staff, User, SalonSettings, Appointment, Invoice } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
-const { dayKeyFromDate, getAvailableSlots, timeToMinutes, minutesToTime } = require('../utils/availability');
+const { dayKeyFromDate, getAvailableSlots, timeToMinutes, minutesToTime, isSlotWithinOpenHours } = require('../utils/availability');
 const { sendBookingConfirmation, sendCancellationNotice } = require('../utils/email');
 const { hoursUntil } = require('../utils/datetime');
 const { INVOICE_DIR } = require('../utils/invoicePdf');
+const { maybeGenerateInvoice } = require('../utils/invoiceService');
 const fs = require('fs');
 const path = require('path');
 
@@ -46,6 +47,24 @@ async function getAvailableSlotsHandler(req, res) {
   res.json({ date, serviceId: Number(serviceId), staffId: Number(staffId), slots });
 }
 
+// Independently verifies the requested date/startTime/endTime actually falls
+// within both the salon's and the staff member's working hours — the
+// frontend only ever offers slots from /available-slots, but the backend
+// can't trust that a POST/PUT body was built from those slots. Reuses the
+// same isSlotWithinOpenHours logic /available-slots uses internally.
+async function assertWithinWorkingHours({ date, startTime, endTime, staff }) {
+  const salonSettings = await SalonSettings.findByPk(1);
+  if (!salonSettings) throw new AppError(400, 'Salon working hours have not been configured yet');
+
+  const dayKey = dayKeyFromDate(date);
+  const salonHours = salonSettings.workingHours[dayKey] || [];
+  const staffHours = staff.workingHours?.[dayKey] || [];
+
+  if (!isSlotWithinOpenHours({ salonHours, staffHours, startTime, endTime })) {
+    throw new AppError(400, 'The requested time is outside salon or staff working hours');
+  }
+}
+
 // Re-checks the requested slot is still free right before creating the
 // booking — the /available-slots response can go stale between the user
 // viewing it and clicking "confirm".
@@ -82,6 +101,7 @@ async function bookAppointment(req, res) {
     timeToMinutes(startTime) + service.durationMinutes
   );
 
+  await assertWithinWorkingHours({ date, startTime, endTime, staff });
   await assertSlotIsFree({ staffId, date, startTime, endTime });
 
   const appointment = await Appointment.create({
@@ -187,10 +207,12 @@ async function rescheduleAppointment(req, res) {
   if (!date || !startTime) throw new AppError(400, 'date and startTime are required');
 
   const service = await Service.findByPk(appointment.serviceId);
+  const staff = await Staff.findByPk(appointment.staffId);
   const endTime = minutesToTime(
     timeToMinutes(startTime) + service.durationMinutes
   );
 
+  await assertWithinWorkingHours({ date, startTime, endTime, staff });
   await assertSlotIsFree({ staffId: appointment.staffId, date, startTime, endTime, excludeAppointmentId: appointment.id });
 
   appointment.date = date;
@@ -251,6 +273,14 @@ async function updateAppointmentStatus(req, res) {
 
   appointment.status = status;
   await appointment.save();
+
+  // Generates the invoice if this appointment is now completed AND already
+  // paid; no-ops otherwise (e.g. if payment hasn't happened yet). See
+  // utils/invoiceService.js — the mirror trigger lives in the Stripe webhook.
+  if (status === 'completed') {
+    await maybeGenerateInvoice(appointment.id);
+  }
+
   res.json(appointment);
 }
 

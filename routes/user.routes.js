@@ -28,7 +28,7 @@ router.get('/me', authenticate, asyncHandler(getMe));
  * @swagger
  * /users/me:
  *   put:
- *     summary: Update the logged-in user's own profile (name, phone)
+ *     summary: Update the logged-in user's own profile and preferences
  *     tags: [Users]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -39,9 +39,13 @@ router.get('/me', authenticate, asyncHandler(getMe));
  *             properties:
  *               name: { type: string }
  *               phone: { type: string }
+ *               preferredStaffId: { type: integer, nullable: true, description: "Set to null to clear the preference" }
+ *               reminderOptIn: { type: boolean, description: "Set to false to stop receiving reminder emails" }
+ *               preferenceNotes: { type: string, description: "Free text — allergies, styling notes, anything else" }
  *     responses:
  *       200: { description: Updated profile }
  *       401: { description: Not authenticated }
+ *       404: { description: preferredStaffId does not match any staff member }
  */
 router.put('/me', authenticate, asyncHandler(updateMe));
 

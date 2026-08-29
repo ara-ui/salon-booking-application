@@ -50,21 +50,26 @@ async function deleteService(req, res) {
 async function getSalonSettings(req, res) {
   const settings = await SalonSettings.findByPk(1);
   if (!settings) throw new AppError(404, 'Salon settings have not been configured yet');
-  res.json(settings);
+  // Normalize null -> [] so the frontend never has to special-case a missing value.
+  res.json({ ...settings.toJSON(), specialDates: settings.specialDates || [] });
 }
 
 async function updateSalonSettings(req, res) {
-  const { workingHours } = req.body;
+  const { workingHours, specialDates } = req.body;
   if (!workingHours) throw new AppError(400, 'workingHours is required');
+  if (specialDates !== undefined && !Array.isArray(specialDates)) {
+    throw new AppError(400, 'specialDates must be an array');
+  }
 
   const [settings] = await SalonSettings.findOrCreate({
     where: { id: 1 },
-    defaults: { workingHours },
+    defaults: { workingHours, specialDates: specialDates || [] },
   });
   settings.workingHours = workingHours;
+  if (specialDates !== undefined) settings.specialDates = specialDates; // leave untouched if omitted
   await settings.save();
 
-  res.json(settings);
+  res.json({ ...settings.toJSON(), specialDates: settings.specialDates || [] });
 }
 
 module.exports = {

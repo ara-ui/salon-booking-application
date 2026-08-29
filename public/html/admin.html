@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Glow Salon — Admin</title>
+<link rel="stylesheet" href="../css/style.css" />
+<link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<header>
+  <h1>Glow Salon — Admin</h1>
+  <nav><span id="welcome"></span><span class="logout" onclick="logout()">Logout</span></nav>
+</header>
+<main>
+
+  <div class="tabs">
+    <button class="active" onclick="showTab('users', this)">Users</button>
+    <button onclick="showTab('services', this)">Services</button>
+    <button onclick="showTab('staff', this)">Staff</button>
+    <button onclick="showTab('appointments', this)">Appointments</button>
+    <button onclick="showTab('settings', this)">Salon Settings</button>
+  </div>
+
+  <div id="tab-users" class="tab">
+    <div class="card">
+      <h2>Users</h2>
+      <div id="userMsg"></div>
+      <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="userRows"></tbody></table>
+    </div>
+  </div>
+
+  <div id="tab-services" class="tab" style="display:none">
+    <div class="card">
+      <h2>Add a service</h2>
+      <form id="serviceForm">
+        <label>Name</label><input id="svcName" required />
+        <label>Description</label><textarea id="svcDesc" rows="2"></textarea>
+        <label>Duration (minutes)</label><input type="number" id="svcDuration" required />
+        <label>Price</label><input type="number" step="0.01" id="svcPrice" required />
+        <button type="submit">Create service</button>
+      </form>
+      <div id="serviceMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Existing services</h2>
+      <table><thead><tr><th>Name</th><th>Duration</th><th>Price</th><th>Active</th><th>Actions</th></tr></thead>
+        <tbody id="serviceRows"></tbody></table>
+    </div>
+
+    <div class="card" id="serviceEditPanel" style="display:none">
+      <h2>Edit service</h2>
+      <input type="hidden" id="svcEditId" />
+      <label>Name</label><input id="svcEditName" required />
+      <label>Description</label><textarea id="svcEditDesc" rows="2"></textarea>
+      <label>Duration (minutes)</label><input type="number" id="svcEditDuration" required />
+      <label>Price</label><input type="number" step="0.01" id="svcEditPrice" required />
+      <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+        <input type="checkbox" id="svcEditActive" style="width:auto" /> Active (visible to customers)
+      </label>
+      <div style="margin-top:14px">
+        <button onclick="saveServiceEdit()">Save changes</button>
+        <button class="secondary" onclick="closeServiceEdit()">Cancel</button>
+      </div>
+      <div id="serviceEditMsg"></div>
+    </div>
+  </div>
+
+  <div id="tab-staff" class="tab" style="display:none">
+    <div class="card">
+      <h2>Add a staff member</h2>
+      <form id="staffForm">
+        <label>Name</label><input id="stfName" required />
+        <label>Email</label><input type="email" id="stfEmail" required />
+        <label>Password</label><input type="password" id="stfPassword" required minlength="6" />
+        <label>Specialization</label><input id="stfSpecialization" />
+        <p style="font-size:12px;color:#888">Working hours default to Mon–Sat 9:00–18:00 — edit later via the API if needed.</p>
+        <button type="submit">Create staff</button>
+      </form>
+      <div id="staffMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Existing staff</h2>
+      <div id="staffAssignMsg"></div>
+      <table><thead><tr><th>Name</th><th>Specialization</th><th>Assigned services</th><th>Assign a service</th></tr></thead>
+        <tbody id="staffRows"></tbody></table>
+    </div>
+  </div>
+
+  <div id="tab-appointments" class="tab" style="display:none">
+    <div class="card">
+      <h2>All appointments</h2>
+      <button onclick="triggerReminders()">Run reminder job now</button>
+      <div id="reminderMsg"></div>
+      <table style="margin-top:10px"><thead><tr><th>Customer</th><th>Staff</th><th>Service</th><th>Date</th><th>Status</th><th>Payment</th></tr></thead>
+        <tbody id="apptRows"></tbody></table>
+    </div>
+  </div>
+
+  <div id="tab-settings" class="tab" style="display:none">
+    <div class="card">
+      <h2>Salon working hours</h2>
+      <div id="weeklyHoursRows"></div>
+      <button onclick="saveWeeklyHours()">Save changes</button>
+      <div id="settingsMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Special days</h2>
+      <p style="font-size:12px;color:#888">Holidays, early closings, or one-off working hours for a specific date. These override the weekly hours above for that date only.</p>
+      <div id="specialDaysList"></div>
+
+      <h3 style="font-size:14px;margin-top:18px">Add a special day</h3>
+      <label>Date</label>
+      <input type="date" id="sdDate" />
+      <label>Type</label>
+      <select id="sdType" onchange="toggleSpecialHoursInputs()">
+        <option value="closed">Holiday / Closed</option>
+        <option value="special">Special working hours</option>
+        <option value="early_close">Early closing</option>
+      </select>
+      <div id="sdHoursFields">
+        <label>From</label><input type="time" id="sdStart" />
+        <label>To</label><input type="time" id="sdEnd" />
+      </div>
+      <button onclick="addSpecialDay()">Save special day</button>
+      <div id="specialDaysMsg"></div>
+    </div>
+  </div>
+
+</main>
+
+<script src="../js/api.js"></script>
+<script src="../js/admin.js"></script>
+</body>
+</html>

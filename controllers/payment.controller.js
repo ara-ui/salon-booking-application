@@ -1,7 +1,13 @@
-const { Appointment, Service, Staff, User, Payment, Invoice } = require('../models');
+const { Appointment, Service, Payment } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
 const { getStripe } = require('../utils/stripeClient');
-const { generateInvoicePdf } = require('../utils/invoicePdf');
+const { maybeGenerateInvoice } = require('../utils/invoiceService');
+
+// Base URL of the frontend the customer lands back on after Stripe checkout.
+// Defaults to this app's own origin (the frontend is served by this same
+// Express app at localhost:5000, not a separate localhost:3000 app) — set
+// CLIENT_URL in production to override with the real deployed domain.
+const FRONTEND_BASE_URL = process.env.CLIENT_URL || 'http://localhost:5000';
 
 async function createCheckoutSession(req, res) {
   const { appointmentId } = req.body;
@@ -30,8 +36,8 @@ async function createCheckoutSession(req, res) {
       },
       quantity: 1,
     }],
-    success_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/payment-success?appointmentId=${appointment.id}`,
-    cancel_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/payment-cancelled`,
+    success_url: `${FRONTEND_BASE_URL}/html/customer.html?appointmentId=${appointment.id}`,
+    cancel_url: `${FRONTEND_BASE_URL}/html/customer.html?payment=cancelled`,
     metadata: { appointmentId: String(appointment.id), paymentId: String(payment.id) },
   });
 
@@ -63,31 +69,14 @@ async function handleWebhook(req, res) {
       payment.status = 'succeeded';
       await payment.save();
 
-      const appointment = await Appointment.findByPk(payment.appointmentId, {
-        include: [Service, { model: Staff, include: [User] }, { model: User, as: 'customer' }],
-      });
+      const appointment = await Appointment.findByPk(payment.appointmentId);
       appointment.paymentStatus = 'paid';
       await appointment.save();
 
-      // Generate the invoice now that payment is confirmed. The download
-      // endpoint (GET /appointments/:id/invoice) reconstructs the same file
-      // path from the appointment id, so we don't need to store it here.
-      await generateInvoicePdf({
-        appointmentId: appointment.id,
-        customerName: appointment.customer.name,
-        serviceName: appointment.Service.name,
-        staffName: appointment.Staff.User.name,
-        date: appointment.date,
-        startTime: appointment.startTime,
-        amount: payment.amount,
-      });
-
-      await Invoice.create({
-        appointmentId: appointment.id,
-        paymentId: payment.id,
-        amount: payment.amount,
-        pdfUrl: `/api/appointments/${appointment.id}/invoice`, // gated download endpoint, not a raw file path
-      });
+      // Only actually generates an invoice if the appointment is ALSO
+      // already 'completed' — otherwise it's generated later, when
+      // updateAppointmentStatus marks it completed. See utils/invoiceService.js.
+      await maybeGenerateInvoice(appointment.id);
     }
   }
 
