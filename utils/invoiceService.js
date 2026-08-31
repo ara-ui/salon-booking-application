@@ -8,8 +8,8 @@ const { generateInvoicePdf } = require('./invoicePdf');
  * completed appointments" requirement while still needing a successful
  * payment to know the amount actually charged.
  *
- * Safe to call from multiple trigger points (the Stripe webhook, and
- * marking an appointment completed) — it no-ops if the conditions aren't
+ * Safe to call from multiple trigger points (Cashfree payment verification,
+ * and marking an appointment completed) — it no-ops if the conditions aren't
  * met yet, and no-ops again if an invoice already exists, so calling it
  * twice (e.g. paid AFTER being marked completed) never creates duplicates.
  */

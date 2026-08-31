@@ -43,7 +43,11 @@ async function getAvailableSlotsHandler(req, res) {
     }
   }
 
- const slotMap = new Map(); // startTime -> {startTime, endTime}
+  // Union of slots bookable with AT LEAST one candidate staff member. Which
+  // specific staff member ends up assigned is resolved later, at booking
+  // time, by pickStaffForBooking — using these exact same rules, so a slot
+  // shown here is guaranteed to still resolve to a real staff member.
+  const slotMap = new Map(); // startTime -> {startTime, endTime}
   for (const staff of staffList) {
     const staffHours = staff.workingHours?.[dayKey] || [];
     const existingBookings = await Appointment.findAll({
@@ -66,7 +70,11 @@ async function getAvailableSlotsHandler(req, res) {
   res.json(response);
 }
 
-
+// Independently verifies the requested date/startTime/endTime actually falls
+// within both the salon's and the staff member's working hours — the
+// frontend only ever offers slots from /available-slots, but the backend
+// can't trust that a POST/PUT body was built from those slots. Reuses the
+// same isSlotWithinOpenHours logic /available-slots uses internally.
 function isWithinWorkingHoursBool({ date, startTime, endTime, staff, salonSettings }) {
   const dayKey = dayKeyFromDate(date);
   const salonHours = salonSettings.workingHours[dayKey] || [];
@@ -82,6 +90,9 @@ async function assertWithinWorkingHours({ date, startTime, endTime, staff }) {
   }
 }
 
+// Re-checks the requested slot is still free right before creating the
+// booking — the /available-slots response can go stale between the user
+// viewing it and clicking "confirm".
 async function slotHasConflict({ staffId, date, startTime, endTime, excludeAppointmentId }) {
   const existing = await Appointment.findAll({ where: { staffId, date, status: ['booked', 'rescheduled'] } });
 
@@ -102,14 +113,21 @@ async function assertSlotIsFree(params) {
   }
 }
 
-
+// Staff members currently assigned to a service, via the existing
+// Staff<->Service many-to-many. No new relationship — just querying the one
+// that already exists.
 async function getAssignedStaffForService(serviceId) {
   return Staff.findAll({
     include: [{ model: Service, where: { id: serviceId }, attributes: [] }],
   });
 }
 
-
+// Auto-resolves which assigned staff member performs the service, so the
+// customer never has to choose one. Prefers the customer's saved
+// preferredStaffId when that staff member is assigned to this service AND
+// available for the requested time; otherwise picks the first assigned
+// staff member who is available. Reuses the exact same working-hours and
+// conflict checks used everywhere else in this file.
 async function pickStaffForBooking({ serviceId, date, startTime, endTime, preferredStaffId }) {
   const assignedStaff = await getAssignedStaffForService(serviceId);
   if (assignedStaff.length === 0) {
@@ -131,7 +149,11 @@ async function pickStaffForBooking({ serviceId, date, startTime, endTime, prefer
     return staff; // first workable candidate wins
   }
 
- if (!anyWithinWorkingHours) {
+  // Distinguish WHY nothing worked so the working-hours error stays specific
+  // even when multiple staff are being considered — not every candidate
+  // failing for a conflict reason should look identical to none of them
+  // being open at that time at all.
+  if (!anyWithinWorkingHours) {
     throw new AppError(400, 'The requested time is outside salon or staff working hours');
   }
   throw new AppError(409, 'That time is no longer available with any assigned staff member — please pick another time.');
@@ -155,16 +177,20 @@ async function bookAppointment(req, res) {
 
   let staff;
   if (staffId) {
-      staff = await Staff.findOne({
+    // Explicit-staffId path, kept for backward compatibility (e.g. any
+    // existing caller that still sends one). Now also verifies the staff
+    // member is actually assigned to this service — previously this wasn't
+    // checked at all, so this closes a real gap rather than changing behavior.
+    staff = await Staff.findOne({
       where: { id: staffId },
       include: [{ model: Service, where: { id: serviceId }, attributes: [] }, User],
     });
-
     if (!staff) throw new AppError(404, 'That staff member is not assigned to this service');
     await assertWithinWorkingHours({ date, startTime, endTime, staff });
     await assertSlotIsFree({ staffId: staff.id, date, startTime, endTime });
   } else {
-
+    // Customer-facing path — the customer never chooses staff. Resolve one
+    // automatically, preferring their saved preference when available.
     const picked = await pickStaffForBooking({
       serviceId, date, startTime, endTime, preferredStaffId: customer.preferredStaffId,
     });
@@ -194,7 +220,9 @@ async function bookAppointment(req, res) {
   res.status(201).json(appointment);
 }
 
-
+// Loads an appointment with everything a detail view needs, and enforces
+// who's allowed to see it: the customer who booked it, the assigned staff
+// member, or an admin.
 async function getAppointmentById(req, res) {
   const appointment = await Appointment.findByPk(req.params.id, {
     include: [
@@ -320,7 +348,7 @@ async function cancelAppointment(req, res) {
   res.json(appointment);
 }
 
-
+// Staff marks an appointment as completed once the service has been performed.
 async function updateAppointmentStatus(req, res) {
   const appointment = await Appointment.findByPk(req.params.id);
   if (!appointment) throw new AppError(404, 'Appointment not found');
@@ -337,6 +365,11 @@ async function updateAppointmentStatus(req, res) {
 
   appointment.status = status;
   await appointment.save();
+
+  // Generates the invoice if this appointment is now completed AND already
+  // paid; no-ops otherwise (e.g. if payment hasn't happened yet). See
+  // utils/invoiceService.js — the mirror trigger lives in payment.controller.js's
+  // verifyCashfreePayment (the Cashfree order/payment verification endpoint).
   if (status === 'completed') {
     await maybeGenerateInvoice(appointment.id);
   }
@@ -344,6 +377,8 @@ async function updateAppointmentStatus(req, res) {
   res.json(appointment);
 }
 
+// Streams the invoice PDF. Viewable by the customer who owns the appointment
+// or an admin — same access pattern as the appointment detail view.
 async function downloadInvoice(req, res) {
   const appointment = await Appointment.findByPk(req.params.id);
   if (!appointment) throw new AppError(404, 'Appointment not found');

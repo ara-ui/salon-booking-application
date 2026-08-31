@@ -18,6 +18,7 @@
     <button onclick="showTab('services', this)">Services</button>
     <button onclick="showTab('staff', this)">Staff</button>
     <button onclick="showTab('appointments', this)">Appointments</button>
+    <button onclick="showTab('payments', this)">Payments</button>
     <button onclick="showTab('settings', this)">Salon Settings</button>
   </div>
 
@@ -95,6 +96,17 @@
       <div id="reminderMsg"></div>
       <table style="margin-top:10px"><thead><tr><th>Customer</th><th>Staff</th><th>Service</th><th>Date</th><th>Status</th><th>Payment</th></tr></thead>
         <tbody id="apptRows"></tbody></table>
+    </div>
+  </div>
+
+  <div id="tab-payments" class="tab" style="display:none">
+    <div class="card">
+      <h2>Payments received</h2>
+      <div class="payment-summary-grid" id="paymentSummaryCards"></div>
+      <table style="margin-top:14px">
+        <thead><tr><th>Customer</th><th>Email</th><th>Appointment</th><th>Service</th><th>Amount</th><th>Status</th><th>Payment ID</th><th>Date</th></tr></thead>
+        <tbody id="paymentRows"></tbody>
+      </table>
     </div>
   </div>
 

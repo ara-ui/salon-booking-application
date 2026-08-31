@@ -8,7 +8,6 @@ const { sequelize } = require('./models');
 const swaggerSpec = require('./docs/swagger');
 const { errorHandler } = require('./middleware/error.middleware');
 const { scheduleReminderJob } = require('./utils/reminderCron');
-const { handleWebhook } = require('./controllers/payment.controller');
 
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
@@ -23,21 +22,10 @@ const app = express();
 
 app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
 app.use(morgan('dev'));
-
-// IMPORTANT: the Stripe webhook needs the raw, unparsed request body to
-// verify the signature — it must be mounted BEFORE express.json() and
-// matched by exact path so it never gets JSON-parsed first.
-app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), handleWebhook);
-
 app.use(express.json());
-
 
 // Frontend — plain HTML/CSS/JS, 3 role-based pages (index/customer/staff/admin)
 app.use(express.static('public'));
-
-app.get('/', (req, res) => {
-  res.redirect('/html/index.html');
-});
 
 // Swagger docs — visit http://localhost:5000/api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -50,7 +38,7 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/salon-settings', serviceRoutes.settingsRouter);
 app.use('/api/staff', staffRoutes);
 app.use('/api/appointments', appointmentRoutes);
-app.use('/api/payments', paymentRoutes); // /checkout goes through this router; /webhook is already mounted above with raw body
+app.use('/api/payments', paymentRoutes); // Cashfree checkout/verify/history — no raw-body webhook needed
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
 

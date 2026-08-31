@@ -442,4 +442,42 @@ async function removeSpecialDay(index) {
   }
 }
 
-if (user) { loadUsers(); loadServices(); loadStaff(); loadAppointments(); loadSettings(); }
+// =============================================================================
+// PAYMENTS — "Payments Received" + summary cards, all computed from real
+// Payment records via GET /payments (admin only).
+// =============================================================================
+
+async function loadPayments() {
+  const payments = await api('/payments');
+
+  const total = payments.length;
+  const succeeded = payments.filter(p => p.status === 'succeeded').length;
+  const pending = payments.filter(p => p.status === 'pending').length;
+  const failed = payments.filter(p => p.status === 'failed').length;
+  const revenue = payments
+    .filter(p => p.status === 'succeeded')
+    .reduce((sum, p) => sum + Number(p.amount), 0);
+
+  document.getElementById('paymentSummaryCards').innerHTML = `
+    <div class="card payment-summary-card"><div class="ps-label">Total payments</div><div class="ps-value">${total}</div></div>
+    <div class="card payment-summary-card"><div class="ps-label">Successful</div><div class="ps-value">${succeeded}</div></div>
+    <div class="card payment-summary-card"><div class="ps-label">Pending</div><div class="ps-value">${pending}</div></div>
+    <div class="card payment-summary-card"><div class="ps-label">Failed</div><div class="ps-value">${failed}</div></div>
+    <div class="card payment-summary-card"><div class="ps-label">Total revenue</div><div class="ps-value">${fmtMoney(revenue)}</div></div>
+  `;
+
+  document.getElementById('paymentRows').innerHTML = payments.map(p => `
+    <tr>
+      <td>${p.Appointment.customer.name}</td>
+      <td>${p.Appointment.customer.email}</td>
+      <td>#${p.Appointment.id}</td>
+      <td>${p.Appointment.Service.name}</td>
+      <td>${fmtMoney(p.amount)}</td>
+      <td>${badge(p.status)}</td>
+      <td>${p.providerPaymentId || '—'}</td>
+      <td>${new Date(p.createdAt).toLocaleDateString()}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="8">No payments yet.</td></tr>';
+}
+
+if (user) { loadUsers(); loadServices(); loadStaff(); loadAppointments(); loadSettings(); loadPayments(); }

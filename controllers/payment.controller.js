@@ -1,15 +1,12 @@
-const { Appointment, Service, Payment } = require('../models');
+const { Appointment, Service, Staff, User, Payment } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
-const { getStripe } = require('../utils/stripeClient');
+const { getCashfree } = require('../utils/cashfreeClient');
 const { maybeGenerateInvoice } = require('../utils/invoiceService');
 
-// Base URL of the frontend the customer lands back on after Stripe checkout.
-// Defaults to this app's own origin (the frontend is served by this same
-// Express app at localhost:5000, not a separate localhost:3000 app) — set
-// CLIENT_URL in production to override with the real deployed domain.
-const FRONTEND_BASE_URL = process.env.CLIENT_URL || 'http://localhost:5000';
-
-async function createCheckoutSession(req, res) {
+// Creates a Cashfree Sandbox order for an unpaid appointment and a matching
+// 'pending' Payment row. Returns the paymentSessionId the frontend needs to
+// open the embedded Cashfree checkout modal (see public/js/customer.js).
+async function createCashfreeOrder(req, res) {
   const { appointmentId } = req.body;
   if (!appointmentId) throw new AppError(400, 'appointmentId is required');
 
@@ -18,69 +15,128 @@ async function createCheckoutSession(req, res) {
   if (appointment.customerId !== req.user.id) throw new AppError(403, 'Not your appointment');
   if (appointment.paymentStatus === 'paid') throw new AppError(400, 'This appointment is already paid');
 
+  const customer = await User.findByPk(req.user.id);
+
+  // Uses the SALON's actual service price — never a hardcoded amount.
   const payment = await Payment.create({
     appointmentId: appointment.id,
     amount: appointment.Service.price,
     status: 'pending',
   });
 
-  const stripe = getStripe();
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    payment_method_types: ['card'],
-    line_items: [{
-      price_data: {
-        currency: 'usd',
-        product_data: { name: appointment.Service.name },
-        unit_amount: Math.round(Number(appointment.Service.price) * 100),
-      },
-      quantity: 1,
-    }],
-    success_url: `${FRONTEND_BASE_URL}/html/customer.html?appointmentId=${appointment.id}`,
-    cancel_url: `${FRONTEND_BASE_URL}/html/customer.html?payment=cancelled`,
-    metadata: { appointmentId: String(appointment.id), paymentId: String(payment.id) },
+  const cashfreeOrderId = `SALON_ORDER_${appointment.id}_${Date.now()}`;
+
+  const cashfree = getCashfree();
+  const response = await cashfree.PGCreateOrder({
+    order_id: cashfreeOrderId,
+    order_amount: Number(appointment.Service.price),
+    // Cashfree Sandbox reliably supports INR regardless of how the app
+    // displays prices elsewhere (this project's UI uses $ formatting via
+    // fmtMoney) — the order_currency here is just what's sent to Cashfree,
+    // it doesn't change what's shown anywhere in the app.
+    order_currency: 'INR',
+    customer_details: {
+      customer_id: String(customer.id),
+      customer_email: customer.email,
+      // Cashfree Sandbox requires a phone number on every order; fall back
+      // to a placeholder if the customer never set one on their profile.
+      // A production deployment should require a real phone at signup/checkout.
+      customer_phone: customer.phone || '9999999999',
+      customer_name: customer.name,
+    },
   });
 
-  payment.stripeSessionId = session.id;
+  payment.providerOrderId = response.data.order_id;
   await payment.save();
 
-  res.json({ url: session.url, sessionId: session.id });
+  res.json({
+    orderId: response.data.order_id,
+    paymentSessionId: response.data.payment_session_id,
+    paymentId: payment.id,
+  });
 }
 
-// Stripe calls this directly. Must be mounted with a RAW body parser (see
-// server.js) — signature verification needs the untouched request body.
-async function handleWebhook(req, res) {
-  const stripe = getStripe();
-  const signature = req.headers['stripe-signature'];
+// Called by the frontend after the Cashfree checkout modal resolves. Does
+// NOT trust that callback by itself — independently re-verifies the result
+// with Cashfree's server-side PGOrderFetchPayments before marking anything
+// paid. This replaces the old Stripe webhook as the trust boundary.
+async function verifyCashfreePayment(req, res) {
+  const { orderId } = req.body;
+  if (!orderId) throw new AppError(400, 'orderId is required');
 
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, signature, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.warn('Stripe webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+  const payment = await Payment.findOne({ where: { providerOrderId: orderId } });
+  if (!payment) throw new AppError(404, 'No payment found for this order');
+  if (payment.appointmentId == null) throw new AppError(404, 'Payment is not linked to an appointment');
+
+  // Ownership check — a customer can only verify their own payment.
+  const appointment = await Appointment.findByPk(payment.appointmentId);
+  if (!appointment || appointment.customerId !== req.user.id) {
+    throw new AppError(403, 'Not your payment');
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-
-    const payment = await Payment.findOne({ where: { stripeSessionId: session.id } });
-    if (payment) {
-      payment.status = 'succeeded';
-      await payment.save();
-
-      const appointment = await Appointment.findByPk(payment.appointmentId);
-      appointment.paymentStatus = 'paid';
-      await appointment.save();
-
-      // Only actually generates an invoice if the appointment is ALSO
-      // already 'completed' — otherwise it's generated later, when
-      // updateAppointmentStatus marks it completed. See utils/invoiceService.js.
-      await maybeGenerateInvoice(appointment.id);
-    }
+  if (payment.status === 'succeeded') {
+    // Already verified previously (e.g. a duplicate frontend call) — return
+    // the current state rather than re-verifying or erroring.
+    return res.json({ status: 'succeeded', appointmentPaymentStatus: appointment.paymentStatus });
   }
 
-  res.json({ received: true });
+  const cashfree = getCashfree();
+  const result = await cashfree.PGOrderFetchPayments(orderId);
+  const payments = result.data || [];
+  const successfulPayment = payments.find((p) => p.payment_status === 'SUCCESS');
+
+  if (!successfulPayment) {
+    payment.status = 'failed';
+    await payment.save();
+    throw new AppError(400, 'Payment could not be verified as successful');
+  }
+
+  payment.status = 'succeeded';
+  payment.providerPaymentId = successfulPayment.cf_payment_id;
+  await payment.save();
+
+  appointment.paymentStatus = 'paid';
+  await appointment.save();
+
+  // Only actually generates an invoice if the appointment is ALSO already
+  // 'completed' — otherwise it's generated later, when updateAppointmentStatus
+  // marks it completed. See utils/invoiceService.js. Behavior unchanged from
+  // the Stripe implementation.
+  await maybeGenerateInvoice(appointment.id);
+
+  res.json({ status: 'succeeded', appointmentPaymentStatus: 'paid' });
 }
 
-module.exports = { createCheckoutSession, handleWebhook };
+// Customer's own payment history — ownership enforced via the where clause,
+// not just a frontend filter.
+async function getMyPayments(req, res) {
+  const payments = await Payment.findAll({
+    include: [{
+      model: Appointment,
+      where: { customerId: req.user.id },
+      include: [Service],
+      required: true,
+    }],
+    order: [['createdAt', 'DESC']],
+  });
+  res.json(payments);
+}
+
+// Admin: every payment in the system, with enough joined detail to show
+// customer/service/appointment context without extra round-trips.
+async function getAllPayments(req, res) {
+  const payments = await Payment.findAll({
+    include: [{
+      model: Appointment,
+      include: [
+        Service,
+        { model: User, as: 'customer', attributes: ['id', 'name', 'email'] },
+      ],
+      required: true,
+    }],
+    order: [['createdAt', 'DESC']],
+  });
+  res.json(payments);
+}
+
+module.exports = { createCashfreeOrder, verifyCashfreePayment, getMyPayments, getAllPayments };

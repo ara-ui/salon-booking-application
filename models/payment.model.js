@@ -20,7 +20,18 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: 'pending',
     },
-    stripeSessionId: {
+    // Cashfree's order_id — set at order-creation time, before payment happens.
+    // (Renamed from stripeSessionId now that the payment provider is Cashfree,
+    // not Stripe — same role: the identifier used to look up this Payment
+    // when verifying the result.)
+    providerOrderId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    // Cashfree's cf_payment_id — only known AFTER a successful payment
+    // attempt, returned by PGOrderFetchPayments during verification. This is
+    // the "Payment ID" shown in customer/admin payment history.
+    providerPaymentId: {
       type: DataTypes.STRING,
       allowNull: true,
     },

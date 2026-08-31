@@ -119,7 +119,7 @@ async function viewDetail(id) {
 
   let actions = '';
   if (a.paymentStatus === 'unpaid' && a.status !== 'cancelled') {
-    actions += `<button onclick="payNow(${a.id})">Pay now (Stripe test)</button>`;
+    actions += `<button onclick="payNow(${a.id})">Pay now</button>`;
   }
   if (a.paymentStatus === 'paid') {
     actions += `<button class="secondary" onclick="downloadInvoice(${a.id})">Download invoice</button>`;
@@ -150,13 +150,55 @@ async function viewDetail(id) {
   `;
 }
 
+// Opens Cashfree's embedded Sandbox checkout modal (not a page redirect,
+// unlike the old Stripe flow) for an unpaid appointment. The modal's own
+// resolution is NOT treated as proof of payment — after it resolves, the
+// backend independently re-verifies the result via Cashfree's server-side
+// API (POST /payments/verify) before anything is marked paid.
 async function payNow(id) {
+  const msg = document.getElementById('detailMsg');
   try {
-    const res = await api('/payments/checkout', { method: 'POST', body: { appointmentId: id } });
-    window.location.href = res.url; // redirect to Stripe test checkout
+    const order = await api('/payments/checkout', { method: 'POST', body: { appointmentId: id } });
+
+    const cashfree = Cashfree({ mode: 'sandbox' });
+    const result = await cashfree.checkout({
+      paymentSessionId: order.paymentSessionId,
+      redirectTarget: '_modal',
+    });
+
+    if (result.error) {
+      msg.innerHTML = '<p class="error">Payment was not completed.</p>';
+      return;
+    }
+
+    // Modal reported success — now ask the BACKEND to independently confirm
+    // with Cashfree before we treat this appointment as paid.
+    const verified = await api('/payments/verify', { method: 'POST', body: { orderId: order.orderId } });
+    if (verified.appointmentPaymentStatus === 'paid') {
+      msg.innerHTML = '<p class="success">Payment verified — thank you!</p>';
+    } else {
+      msg.innerHTML = '<p class="error">Payment could not be verified. Please contact the salon if you were charged.</p>';
+    }
+    viewDetail(id);
+    loadAppointments();
+    loadPaymentHistory();
   } catch (err) {
-    document.getElementById('detailMsg').innerHTML = `<p class="error">${err.message}</p>`;
+    msg.innerHTML = `<p class="error">${err.message}</p>`;
   }
+}
+
+async function loadPaymentHistory() {
+  const payments = await api('/payments/mine');
+  document.getElementById('paymentHistoryRows').innerHTML = payments.map(p => `
+    <tr>
+      <td>${new Date(p.createdAt).toLocaleDateString()}</td>
+      <td>#${p.Appointment.id}</td>
+      <td>${p.Appointment.Service.name}</td>
+      <td>${fmtMoney(p.amount)}</td>
+      <td>${badge(p.status)}</td>
+      <td>${p.providerPaymentId || '—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="6">No payments yet.</td></tr>';
 }
 
 async function downloadInvoice(id) {
@@ -266,4 +308,4 @@ async function savePreferences() {
   }
 }
 
-if (user) { loadServices().then(loadPreferences); loadAppointments(); }
+if (user) { loadServices().then(loadPreferences); loadAppointments(); loadPaymentHistory(); }
