@@ -19,11 +19,14 @@ const { asyncHandler } = require('../middleware/error.middleware');
  * @swagger
  * /appointments/available-slots:
  *   get:
- *     summary: Get bookable time slots for a service + staff member on a given date
+ *     summary: Get bookable time slots for a service on a given date
  *     description: >
- *       Intersects the salon's working hours, the staff member's working hours,
- *       and the service duration, then removes any slot that overlaps an
- *       existing booking for that staff member on that date.
+ *       staffId is optional. If provided, returns slots for that one staff
+ *       member only (backward-compatible). If omitted (the customer-facing
+ *       case), returns the union of slots bookable with ANY staff member
+ *       currently assigned to the service — the customer never picks staff;
+ *       a specific one is resolved automatically at booking time using the
+ *       same working-hours and conflict rules.
  *     tags: [Appointments]
  *     parameters:
  *       - in: query
@@ -32,7 +35,7 @@ const { asyncHandler } = require('../middleware/error.middleware');
  *         schema: { type: integer }
  *       - in: query
  *         name: staffId
- *         required: true
+ *         required: false
  *         schema: { type: integer }
  *       - in: query
  *         name: date
@@ -40,7 +43,7 @@ const { asyncHandler } = require('../middleware/error.middleware');
  *         schema: { type: string, example: "2026-08-29" }
  *     responses:
  *       200:
- *         description: List of free slots
+ *         description: List of free slots (merged across assigned staff if staffId was omitted)
  *         content:
  *           application/json:
  *             schema:
@@ -48,7 +51,8 @@ const { asyncHandler } = require('../middleware/error.middleware');
  *               properties:
  *                 date: { type: string }
  *                 serviceId: { type: integer }
- *                 staffId: { type: integer }
+ *                 staffId: { type: integer, description: "Only present if staffId was passed in the request" }
+ *                 noStaffAssigned: { type: boolean, description: "true if no staff at all are assigned to this service" }
  *                 slots:
  *                   type: array
  *                   items:
@@ -57,7 +61,7 @@ const { asyncHandler } = require('../middleware/error.middleware');
  *                       startTime: { type: string, example: "09:00" }
  *                       endTime: { type: string, example: "09:45" }
  *       400: { description: Missing or malformed query params }
- *       404: { description: Service, staff, or salon settings not found }
+ *       404: { description: Service or staff (if staffId given) not found }
  */
 router.get('/available-slots', asyncHandler(getAvailableSlotsHandler));
 
@@ -66,7 +70,13 @@ router.get('/available-slots', asyncHandler(getAvailableSlotsHandler));
  * /appointments:
  *   post:
  *     summary: Book an appointment (customer)
- *     description: Re-validates the slot is still free before creating the booking, and sends a confirmation email.
+ *     description: >
+ *       staffId is optional and should normally be omitted — the customer
+ *       does not choose staff. The backend auto-assigns an available staff
+ *       member assigned to the service, preferring the customer's saved
+ *       preferredStaffId when they're assigned and available. Re-validates
+ *       working hours and slot availability before creating the booking,
+ *       and sends a confirmation email.
  *     tags: [Appointments]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -74,17 +84,17 @@ router.get('/available-slots', asyncHandler(getAvailableSlotsHandler));
  *         application/json:
  *           schema:
  *             type: object
- *             required: [serviceId, staffId, date, startTime]
+ *             required: [serviceId, date, startTime]
  *             properties:
  *               serviceId: { type: integer }
- *               staffId: { type: integer }
+ *               staffId: { type: integer, description: "Optional — omit to let the backend auto-assign" }
  *               date: { type: string, example: "2026-08-29" }
  *               startTime: { type: string, example: "10:00" }
  *     responses:
  *       201: { description: Booking created }
- *       400: { description: Missing fields, or requested time is outside salon/staff working hours }
- *       404: { description: Service or staff not found }
- *       409: { description: Slot no longer available }
+ *       400: { description: Missing fields, no staff assigned to the service, or requested time is outside salon/staff working hours }
+ *       404: { description: Service not found, or given staffId is not assigned to this service }
+ *       409: { description: Slot no longer available with the given/any assigned staff member }
  */
 router.post('/', authenticate, requireRole('customer'), asyncHandler(bookAppointment));
 

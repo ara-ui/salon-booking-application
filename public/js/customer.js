@@ -4,7 +4,6 @@ const user = requireRole('customer');
 if (user) document.getElementById('welcome').textContent = `Hi, ${user.name}`;
 
 let selectedServiceId = null;
-let selectedStaffId = null;
 let selectedSlot = null;
 let rescheduleApptId = null; // set when the booking panel is being used to reschedule instead of book new
 
@@ -24,22 +23,24 @@ async function loadServices() {
   window._staffCache = staff;
 }
 
+// The customer never picks staff — this only opens the booking panel (date +
+// available-times step). Staff is resolved automatically by the backend at
+// booking time. If nobody is assigned to this service at all, we tell the
+// customer clearly and never open the panel — same message the backend
+// itself would return if this check were somehow bypassed.
 function openBooking(serviceId, serviceName) {
+  const servicesMsg = document.getElementById('servicesMsg');
+  const eligibleStaff = (window._staffCache || []).filter(st => (st.Services || []).some(sv => sv.id === serviceId));
+
+  if (eligibleStaff.length === 0) {
+    servicesMsg.innerHTML = '<p class="error">No staff is currently assigned to this service. Please choose another service or contact the salon.</p>';
+    return;
+  }
+  servicesMsg.innerHTML = '';
+
   selectedServiceId = serviceId;
   rescheduleApptId = null;
   document.getElementById('bookingServiceName').textContent = serviceName;
-  const eligibleStaff = window._staffCache.filter(st => (st.Services || []).some(sv => sv.id === serviceId));
-  const staffSelect = document.getElementById('staffSelect');
-  staffSelect.innerHTML = eligibleStaff.map(st => `<option value="${st.id}">${st.User.name}${st.specialization ? ' — ' + st.specialization : ''}</option>`).join('')
-    || '<option value="">No staff assigned to this service yet</option>';
-
-  // Pre-select the customer's preferred staff member (by name, under the hood
-  // it's just selecting the <option> whose value is their staff ID) if that
-  // staff member happens to offer this particular service.
-  if (window._preferredStaffId && eligibleStaff.some(st => st.id === window._preferredStaffId)) {
-    staffSelect.value = window._preferredStaffId;
-  }
-
   document.getElementById('slots').innerHTML = '';
   document.getElementById('bookingMsg').innerHTML = '';
   document.getElementById('bookingPanel').style.display = '';
@@ -47,15 +48,15 @@ function openBooking(serviceId, serviceName) {
 }
 
 document.getElementById('loadSlotsBtn').onclick = async () => {
-  const staffId = document.getElementById('staffSelect').value;
   const date = document.getElementById('bookingDate').value;
   const msg = document.getElementById('bookingMsg');
   msg.innerHTML = '';
-  if (!staffId || !date) { msg.innerHTML = '<p class="error">Pick a staff member and date first.</p>'; return; }
+  if (!date) { msg.innerHTML = '<p class="error">Pick a date first.</p>'; return; }
 
   try {
-    const res = await api(`/appointments/available-slots?serviceId=${selectedServiceId}&staffId=${staffId}&date=${date}`, { auth: false });
-    selectedStaffId = staffId;
+    // No staffId — the backend returns the union of slots bookable with any
+    // assigned staff member for this service.
+    const res = await api(`/appointments/available-slots?serviceId=${selectedServiceId}&date=${date}`, { auth: false });
     const slotsDiv = document.getElementById('slots');
     if (res.slots.length === 0) {
       slotsDiv.innerHTML = '<p>No free slots that day — try another date.</p>';
@@ -79,10 +80,13 @@ async function confirmBooking() {
   const msg = document.getElementById('bookingMsg');
   try {
     if (rescheduleApptId) {
+      // Reschedule already keeps the originally-assigned staff member —
+      // never asked the customer to pick one, so no change needed here.
       await api(`/appointments/${rescheduleApptId}/reschedule`, { method: 'PUT', body: { date, startTime: selectedSlot } });
       msg.innerHTML = '<p class="success">Rescheduled!</p>';
     } else {
-      await api('/appointments', { method: 'POST', body: { serviceId: selectedServiceId, staffId: selectedStaffId, date, startTime: selectedSlot } });
+      // No staffId sent — the backend auto-assigns an available assigned staff member.
+      await api('/appointments', { method: 'POST', body: { serviceId: selectedServiceId, date, startTime: selectedSlot } });
       msg.innerHTML = '<p class="success">Booked! Check your email for confirmation.</p>';
     }
     document.getElementById('bookingPanel').style.display = 'none';
@@ -168,7 +172,6 @@ async function downloadInvoice(id) {
 function startReschedule(apptId, serviceId, staffId, serviceName) {
   openBooking(serviceId, serviceName);
   rescheduleApptId = apptId;
-  document.getElementById('staffSelect').value = staffId;
 }
 
 async function cancelAppt(id) {
@@ -197,6 +200,29 @@ async function leaveReview(apptId) {
   }
 }
 
+// =============================================================================
+// PREFERENCES — editable form vs. compact saved summary
+// =============================================================================
+
+// "Has saved preferences" = at least one field holds a deliberate, non-default
+// value. reminderOptIn defaults to true, so only counts if explicitly turned off.
+function preferencesExist(me) {
+  return !!me.preferredStaffId || !!(me.preferenceNotes && me.preferenceNotes.trim()) || me.reminderOptIn === false;
+}
+
+function showPreferenceForm() {
+  document.getElementById('prefSummary').style.display = 'none';
+  document.getElementById('prefForm').style.display = '';
+}
+
+function renderPreferenceSummary(me, staffName) {
+  document.getElementById('prefSummaryStaff').textContent = staffName || 'No preference';
+  document.getElementById('prefSummaryReminder').textContent = me.reminderOptIn !== false ? 'Enabled' : 'Disabled';
+  document.getElementById('prefSummaryNotes').textContent = (me.preferenceNotes && me.preferenceNotes.trim()) || 'None';
+  document.getElementById('prefSummary').style.display = '';
+  document.getElementById('prefForm').style.display = 'none';
+}
+
 async function loadPreferences() {
   const me = await api('/users/me');
   window._preferredStaffId = me.preferredStaffId || null;
@@ -211,6 +237,13 @@ async function loadPreferences() {
 
   document.getElementById('prefReminderOptIn').checked = me.reminderOptIn !== false;
   document.getElementById('prefNotes').value = me.preferenceNotes || '';
+
+  if (preferencesExist(me)) {
+    const staffName = me.preferredStaffId ? allStaff.find(st => st.id === me.preferredStaffId)?.User.name : null;
+    renderPreferenceSummary(me, staffName);
+  } else {
+    showPreferenceForm();
+  }
 }
 
 async function savePreferences() {
@@ -227,6 +260,7 @@ async function savePreferences() {
     });
     window._preferredStaffId = staffVal ? Number(staffVal) : null;
     msg.innerHTML = '<p class="success">Preferences saved.</p>';
+    await loadPreferences(); // re-fetches true DB state, switches to the summary view
   } catch (err) {
     msg.innerHTML = `<p class="error">${err.message}</p>`;
   }

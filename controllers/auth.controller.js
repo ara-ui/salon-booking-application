@@ -27,7 +27,7 @@ async function register(req, res) {
 
   const token = signToken(user);
   res.status(201).json({
-    token,
+    token,//allows automatic login after successful registration
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
   });
 }

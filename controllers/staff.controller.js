@@ -23,8 +23,7 @@ async function getStaff(req, res) {
   res.json(staff);
 }
 
-// Admin creates a brand-new staff member: makes the User account (role=staff)
-// and the Staff profile together in one call.
+
 async function createStaff(req, res) {
   const { name, email, password, specialization, bio, workingHours } = req.body;
   if (!name || !email || !password) {
@@ -35,14 +34,31 @@ async function createStaff(req, res) {
   if (existing) throw new AppError(409, 'An account with this email already exists');
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await User.create({ name, email, passwordHash, role: 'staff' });
-  const staff = await Staff.create({ userId: user.id, specialization, bio, workingHours });
+  const user = await User.create(
+    { name,
+      email,
+      passwordHash,
+      role: 'staff' 
+    }
+  );
 
-  res.status(201).json({ staffId: staff.id, userId: user.id, name: user.name, email: user.email });
+  const staff = await Staff.create({
+      userId: user.id,
+      specialization,
+      bio,
+      workingHours 
+  });
+
+  res.status(201).json({
+    staffId: staff.id,
+    userId: user.id,
+    name: user.name,
+    email: user.email });
 }
 
 async function updateStaff(req, res) {
   const staff = await Staff.findByPk(req.params.id);
+
   if (!staff) throw new AppError(404, 'Staff member not found');
 
   const { specialization, bio, workingHours } = req.body;

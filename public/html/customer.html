@@ -15,13 +15,12 @@
 
   <div class="card">
     <h2>Book an appointment</h2>
+    <div id="servicesMsg"></div>
     <div id="services" class="grid"></div>
   </div>
 
   <div class="card" id="bookingPanel" style="display:none">
     <h2>Book: <span id="bookingServiceName"></span></h2>
-    <label>Staff member</label>
-    <select id="staffSelect"></select>
     <label>Date</label>
     <input type="date" id="bookingDate" />
     <button id="loadSlotsBtn">Find available times</button>
@@ -41,15 +40,25 @@
 
   <div class="card">
     <h2>My preferences</h2>
-    <label>Preferred staff member</label>
-    <select id="prefStaffSelect"><option value="">No preference</option></select>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
-      <input type="checkbox" id="prefReminderOptIn" style="width:auto" /> Send me reminder emails
-    </label>
-    <label>Notes (allergies, styling preferences, anything else)</label>
-    <textarea id="prefNotes" rows="3"></textarea>
-    <button onclick="savePreferences()">Save preferences</button>
     <div id="prefMsg"></div>
+
+    <div id="prefSummary" style="display:none">
+      <p><b>Preferred staff:</b> <span id="prefSummaryStaff"></span></p>
+      <p><b>Reminder emails:</b> <span id="prefSummaryReminder"></span></p>
+      <p><b>Notes:</b> <span id="prefSummaryNotes"></span></p>
+      <button class="secondary" onclick="showPreferenceForm()">Edit Preferences</button>
+    </div>
+
+    <div id="prefForm">
+      <label>Preferred staff member</label>
+      <select id="prefStaffSelect"><option value="">No preference</option></select>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+        <input type="checkbox" id="prefReminderOptIn" style="width:auto" /> Send me reminder emails
+      </label>
+      <label>Notes (allergies, styling preferences, anything else)</label>
+      <textarea id="prefNotes" rows="3"></textarea>
+      <button onclick="savePreferences()">Save preferences</button>
+    </div>
   </div>
 
 </main>

@@ -12,8 +12,8 @@ const CANCELLATION_WINDOW_HOURS = 2; // no reschedule/cancel within this many ho
 
 async function getAvailableSlotsHandler(req, res) {
   const { serviceId, staffId, date } = req.query;
-  if (!serviceId || !staffId || !date) {
-    throw new AppError(400, 'serviceId, staffId and date query params are all required');
+  if (!serviceId || !date) {
+    throw new AppError(400, 'serviceId and date query params are required');
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new AppError(400, 'date must be in YYYY-MM-DD format');
@@ -22,91 +22,158 @@ async function getAvailableSlotsHandler(req, res) {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new AppError(404, 'Service not found');
 
-  const staff = await Staff.findByPk(staffId);
-  if (!staff) throw new AppError(404, 'Staff member not found');
-
   const salonSettings = await SalonSettings.findByPk(1);
   if (!salonSettings) throw new AppError(404, 'Salon working hours have not been configured yet');
 
   const dayKey = dayKeyFromDate(date);
   const salonHours = salonSettings.workingHours[dayKey] || [];
-  const staffHours = staff.workingHours?.[dayKey] || [];
 
-  const existingBookings = await Appointment.findAll({
-    where: { staffId, date, status: ['booked', 'rescheduled'] },
-    attributes: ['startTime', 'endTime'],
-  });
+  let staffList;
+  if (staffId) {
+    // Explicit-staffId path — unchanged behavior, kept for backward compatibility.
+    const staff = await Staff.findByPk(staffId);
+    if (!staff) throw new AppError(404, 'Staff member not found');
+    staffList = [staff];
+  } else {
+    // Customer-facing path — the customer never picks staff, so compute
+    // slots across every staff member assigned to this service.
+    staffList = await getAssignedStaffForService(serviceId);
+    if (staffList.length === 0) {
+      return res.json({ date, serviceId: Number(serviceId), slots: [], noStaffAssigned: true });
+    }
+  }
 
-  const slots = getAvailableSlots({
-    salonHours,
-    staffHours,
-    durationMinutes: service.durationMinutes,
-    existingBookings: existingBookings.map((b) => b.toJSON()),
-  });
+ const slotMap = new Map(); // startTime -> {startTime, endTime}
+  for (const staff of staffList) {
+    const staffHours = staff.workingHours?.[dayKey] || [];
+    const existingBookings = await Appointment.findAll({
+      where: { staffId: staff.id, date, status: ['booked', 'rescheduled'] },
+      attributes: ['startTime', 'endTime'],
+    });
 
-  res.json({ date, serviceId: Number(serviceId), staffId: Number(staffId), slots });
+    const slots = getAvailableSlots({
+      salonHours,
+      staffHours,
+      durationMinutes: service.durationMinutes,
+      existingBookings: existingBookings.map((b) => b.toJSON()),
+    });
+    for (const s of slots) slotMap.set(s.startTime, s);
+  }
+
+  const mergedSlots = [...slotMap.values()].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const response = { date, serviceId: Number(serviceId), slots: mergedSlots };
+  if (staffId) response.staffId = Number(staffId);
+  res.json(response);
 }
 
-// Independently verifies the requested date/startTime/endTime actually falls
-// within both the salon's and the staff member's working hours — the
-// frontend only ever offers slots from /available-slots, but the backend
-// can't trust that a POST/PUT body was built from those slots. Reuses the
-// same isSlotWithinOpenHours logic /available-slots uses internally.
-async function assertWithinWorkingHours({ date, startTime, endTime, staff }) {
-  const salonSettings = await SalonSettings.findByPk(1);
-  if (!salonSettings) throw new AppError(400, 'Salon working hours have not been configured yet');
 
+function isWithinWorkingHoursBool({ date, startTime, endTime, staff, salonSettings }) {
   const dayKey = dayKeyFromDate(date);
   const salonHours = salonSettings.workingHours[dayKey] || [];
   const staffHours = staff.workingHours?.[dayKey] || [];
+  return isSlotWithinOpenHours({ salonHours, staffHours, startTime, endTime });
+}
 
-  if (!isSlotWithinOpenHours({ salonHours, staffHours, startTime, endTime })) {
+async function assertWithinWorkingHours({ date, startTime, endTime, staff }) {
+  const salonSettings = await SalonSettings.findByPk(1);
+  if (!salonSettings) throw new AppError(400, 'Salon working hours have not been configured yet');
+  if (!isWithinWorkingHoursBool({ date, startTime, endTime, staff, salonSettings })) {
     throw new AppError(400, 'The requested time is outside salon or staff working hours');
   }
 }
 
-// Re-checks the requested slot is still free right before creating the
-// booking — the /available-slots response can go stale between the user
-// viewing it and clicking "confirm".
-async function assertSlotIsFree({ staffId, date, startTime, endTime, excludeAppointmentId }) {
-  const where = { staffId, date, status: ['booked', 'rescheduled'] };
-  const existing = await Appointment.findAll({ where });
+async function slotHasConflict({ staffId, date, startTime, endTime, excludeAppointmentId }) {
+  const existing = await Appointment.findAll({ where: { staffId, date, status: ['booked', 'rescheduled'] } });
 
   const startMin = timeToMinutes(startTime);
   const endMin = timeToMinutes(endTime);
 
-  const conflict = existing.some((appt) => {
+  return existing.some((appt) => {
     if (excludeAppointmentId && appt.id === excludeAppointmentId) return false; // ignore the appointment being rescheduled
     const apptStart = timeToMinutes(appt.startTime);
     const apptEnd = timeToMinutes(appt.endTime);
     return startMin < apptEnd && endMin > apptStart; // overlap test
   });
+}
 
-  if (conflict) throw new AppError(409, 'That slot was just booked by someone else — please pick another.');
+async function assertSlotIsFree(params) {
+  if (await slotHasConflict(params)) {
+    throw new AppError(409, 'That slot was just booked by someone else — please pick another.');
+  }
+}
+
+
+async function getAssignedStaffForService(serviceId) {
+  return Staff.findAll({
+    include: [{ model: Service, where: { id: serviceId }, attributes: [] }],
+  });
+}
+
+
+async function pickStaffForBooking({ serviceId, date, startTime, endTime, preferredStaffId }) {
+  const assignedStaff = await getAssignedStaffForService(serviceId);
+  if (assignedStaff.length === 0) {
+    throw new AppError(400, 'No staff is currently assigned to this service. Please choose another service or contact the salon.');
+  }
+
+  const salonSettings = await SalonSettings.findByPk(1);
+  if (!salonSettings) throw new AppError(400, 'Salon working hours have not been configured yet');
+
+  const ordered = preferredStaffId
+    ? [...assignedStaff].sort((a, b) => (a.id === preferredStaffId ? -1 : b.id === preferredStaffId ? 1 : 0))
+    : assignedStaff;
+
+  let anyWithinWorkingHours = false;
+  for (const staff of ordered) {
+    if (!isWithinWorkingHoursBool({ date, startTime, endTime, staff, salonSettings })) continue;
+    anyWithinWorkingHours = true;
+    if (await slotHasConflict({ staffId: staff.id, date, startTime, endTime })) continue;
+    return staff; // first workable candidate wins
+  }
+
+ if (!anyWithinWorkingHours) {
+    throw new AppError(400, 'The requested time is outside salon or staff working hours');
+  }
+  throw new AppError(409, 'That time is no longer available with any assigned staff member — please pick another time.');
 }
 
 async function bookAppointment(req, res) {
-  const { serviceId, staffId, date, startTime } = req.body;
-  if (!serviceId || !staffId || !date || !startTime) {
-    throw new AppError(400, 'serviceId, staffId, date and startTime are all required');
+  const { serviceId, date, startTime } = req.body;
+  let { staffId } = req.body;
+  if (!serviceId || !date || !startTime) {
+    throw new AppError(400, 'serviceId, date and startTime are all required');
   }
 
   const service = await Service.findByPk(serviceId);
   if (!service) throw new AppError(404, 'Service not found');
 
-  const staff = await Staff.findByPk(staffId, { include: [User] });
-  if (!staff) throw new AppError(404, 'Staff member not found');
-
   const endTime = minutesToTime(
     timeToMinutes(startTime) + service.durationMinutes
   );
 
-  await assertWithinWorkingHours({ date, startTime, endTime, staff });
-  await assertSlotIsFree({ staffId, date, startTime, endTime });
+  const customer = await User.findByPk(req.user.id);
+
+  let staff;
+  if (staffId) {
+      staff = await Staff.findOne({
+      where: { id: staffId },
+      include: [{ model: Service, where: { id: serviceId }, attributes: [] }, User],
+    });
+
+    if (!staff) throw new AppError(404, 'That staff member is not assigned to this service');
+    await assertWithinWorkingHours({ date, startTime, endTime, staff });
+    await assertSlotIsFree({ staffId: staff.id, date, startTime, endTime });
+  } else {
+
+    const picked = await pickStaffForBooking({
+      serviceId, date, startTime, endTime, preferredStaffId: customer.preferredStaffId,
+    });
+    staff = await Staff.findByPk(picked.id, { include: [User] });
+  }
 
   const appointment = await Appointment.create({
     customerId: req.user.id,
-    staffId,
+    staffId: staff.id,
     serviceId,
     date,
     startTime,
@@ -115,7 +182,6 @@ async function bookAppointment(req, res) {
     paymentStatus: 'unpaid',
   });
 
-  const customer = await User.findByPk(req.user.id);
   await sendBookingConfirmation({
     to: customer.email,
     customerName: customer.name,
@@ -128,9 +194,7 @@ async function bookAppointment(req, res) {
   res.status(201).json(appointment);
 }
 
-// Loads an appointment with everything a detail view needs, and enforces
-// who's allowed to see it: the customer who booked it, the assigned staff
-// member, or an admin.
+
 async function getAppointmentById(req, res) {
   const appointment = await Appointment.findByPk(req.params.id, {
     include: [
@@ -256,7 +320,7 @@ async function cancelAppointment(req, res) {
   res.json(appointment);
 }
 
-// Staff marks an appointment as completed once the service has been performed.
+
 async function updateAppointmentStatus(req, res) {
   const appointment = await Appointment.findByPk(req.params.id);
   if (!appointment) throw new AppError(404, 'Appointment not found');
@@ -273,10 +337,6 @@ async function updateAppointmentStatus(req, res) {
 
   appointment.status = status;
   await appointment.save();
-
-  // Generates the invoice if this appointment is now completed AND already
-  // paid; no-ops otherwise (e.g. if payment hasn't happened yet). See
-  // utils/invoiceService.js — the mirror trigger lives in the Stripe webhook.
   if (status === 'completed') {
     await maybeGenerateInvoice(appointment.id);
   }
@@ -284,8 +344,6 @@ async function updateAppointmentStatus(req, res) {
   res.json(appointment);
 }
 
-// Streams the invoice PDF. Viewable by the customer who owns the appointment
-// or an admin — same access pattern as the appointment detail view.
 async function downloadInvoice(req, res) {
   const appointment = await Appointment.findByPk(req.params.id);
   if (!appointment) throw new AppError(404, 'Appointment not found');
