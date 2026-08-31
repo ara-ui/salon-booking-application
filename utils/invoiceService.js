@@ -1,18 +1,6 @@
 const { Appointment, Service, Staff, User, Payment, Invoice } = require('../models');
 const { generateInvoicePdf } = require('./invoicePdf');
 
-/**
- * Generates the PDF invoice + Invoice DB row for an appointment, but only
- * once BOTH conditions are true: the appointment is 'completed' AND its
- * paymentStatus is 'paid'. Matches the assignment's "invoice generation for
- * completed appointments" requirement while still needing a successful
- * payment to know the amount actually charged.
- *
- * Safe to call from multiple trigger points (Cashfree payment verification,
- * and marking an appointment completed) — it no-ops if the conditions aren't
- * met yet, and no-ops again if an invoice already exists, so calling it
- * twice (e.g. paid AFTER being marked completed) never creates duplicates.
- */
 async function maybeGenerateInvoice(appointmentId) {
   const appointment = await Appointment.findByPk(appointmentId, {
     include: [Service, { model: Staff, include: [User] }, { model: User, as: 'customer' }],

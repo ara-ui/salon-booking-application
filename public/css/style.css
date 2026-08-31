@@ -90,6 +90,10 @@ th, td {
 .badge.completed { background: #3a8a4a; }
 .badge.cancelled { background: #999; }
 .badge.unpaid { background: #b3452e; }
+.badge.pending { background: #b8860b; }
+.badge.succeeded { background: #3a8a4a; }
+.badge.failed { background: #b3452e; }
+.badge.refunded { background: #6c6c9c; }
 .badge.paid { background: #3a8a4a; }
 .grid { 
     display: grid;

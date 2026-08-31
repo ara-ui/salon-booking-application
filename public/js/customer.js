@@ -1,4 +1,3 @@
-// Customer dashboard logic (customer.html).
 
 const user = requireRole('customer');
 if (user) document.getElementById('welcome').textContent = `Hi, ${user.name}`;
@@ -22,12 +21,6 @@ async function loadServices() {
 
   window._staffCache = staff;
 }
-
-// The customer never picks staff — this only opens the booking panel (date +
-// available-times step). Staff is resolved automatically by the backend at
-// booking time. If nobody is assigned to this service at all, we tell the
-// customer clearly and never open the panel — same message the backend
-// itself would return if this check were somehow bypassed.
 function openBooking(serviceId, serviceName) {
   const servicesMsg = document.getElementById('servicesMsg');
   const eligibleStaff = (window._staffCache || []).filter(st => (st.Services || []).some(sv => sv.id === serviceId));
@@ -39,7 +32,7 @@ function openBooking(serviceId, serviceName) {
   servicesMsg.innerHTML = '';
 
   selectedServiceId = serviceId;
-  rescheduleApptId = null;
+
   document.getElementById('bookingServiceName').textContent = serviceName;
   document.getElementById('slots').innerHTML = '';
   document.getElementById('bookingMsg').innerHTML = '';
@@ -54,9 +47,20 @@ document.getElementById('loadSlotsBtn').onclick = async () => {
   if (!date) { msg.innerHTML = '<p class="error">Pick a date first.</p>'; return; }
 
   try {
-    // No staffId — the backend returns the union of slots bookable with any
-    // assigned staff member for this service.
-    const res = await api(`/appointments/available-slots?serviceId=${selectedServiceId}&date=${date}`, { auth: false });
+    
+    const excludeParam = rescheduleApptId
+      ? `&excludeAppointmentId=${rescheduleApptId}`
+      : '';
+
+    const staffParam = rescheduleApptId
+      ? `&staffId=${window._rescheduleStaffId}`
+      : '';
+
+    const res = await api(
+      `/appointments/available-slots?serviceId=${selectedServiceId}&date=${date}${staffParam}${excludeParam}`,
+      { auth: false }
+    );
+        
     const slotsDiv = document.getElementById('slots');
     if (res.slots.length === 0) {
       slotsDiv.innerHTML = '<p>No free slots that day — try another date.</p>';
@@ -80,12 +84,10 @@ async function confirmBooking() {
   const msg = document.getElementById('bookingMsg');
   try {
     if (rescheduleApptId) {
-      // Reschedule already keeps the originally-assigned staff member —
-      // never asked the customer to pick one, so no change needed here.
-      await api(`/appointments/${rescheduleApptId}/reschedule`, { method: 'PUT', body: { date, startTime: selectedSlot } });
+     await api(`/appointments/${rescheduleApptId}/reschedule`, { method: 'PUT', body: { date, startTime: selectedSlot } });
       msg.innerHTML = '<p class="success">Rescheduled!</p>';
     } else {
-      // No staffId sent — the backend auto-assigns an available assigned staff member.
+      
       await api('/appointments', { method: 'POST', body: { serviceId: selectedServiceId, date, startTime: selectedSlot } });
       msg.innerHTML = '<p class="success">Booked! Check your email for confirmation.</p>';
     }
@@ -150,11 +152,6 @@ async function viewDetail(id) {
   `;
 }
 
-// Opens Cashfree's embedded Sandbox checkout modal (not a page redirect,
-// unlike the old Stripe flow) for an unpaid appointment. The modal's own
-// resolution is NOT treated as proof of payment — after it resolves, the
-// backend independently re-verifies the result via Cashfree's server-side
-// API (POST /payments/verify) before anything is marked paid.
 async function payNow(id) {
   const msg = document.getElementById('detailMsg');
   try {
@@ -170,9 +167,6 @@ async function payNow(id) {
       msg.innerHTML = '<p class="error">Payment was not completed.</p>';
       return;
     }
-
-    // Modal reported success — now ask the BACKEND to independently confirm
-    // with Cashfree before we treat this appointment as paid.
     const verified = await api('/payments/verify', { method: 'POST', body: { orderId: order.orderId } });
     if (verified.appointmentPaymentStatus === 'paid') {
       msg.innerHTML = '<p class="success">Payment verified — thank you!</p>';
@@ -212,8 +206,9 @@ async function downloadInvoice(id) {
 }
 
 function startReschedule(apptId, serviceId, staffId, serviceName) {
-  openBooking(serviceId, serviceName);
   rescheduleApptId = apptId;
+  window._rescheduleStaffId = staffId;
+  openBooking(serviceId, serviceName);
 }
 
 async function cancelAppt(id) {
@@ -242,12 +237,6 @@ async function leaveReview(apptId) {
   }
 }
 
-// =============================================================================
-// PREFERENCES — editable form vs. compact saved summary
-// =============================================================================
-
-// "Has saved preferences" = at least one field holds a deliberate, non-default
-// value. reminderOptIn defaults to true, so only counts if explicitly turned off.
 function preferencesExist(me) {
   return !!me.preferredStaffId || !!(me.preferenceNotes && me.preferenceNotes.trim()) || me.reminderOptIn === false;
 }
@@ -269,8 +258,6 @@ async function loadPreferences() {
   const me = await api('/users/me');
   window._preferredStaffId = me.preferredStaffId || null;
 
-  // Populate the dropdown with staff NAMES — the customer only ever sees
-  // names; the option's value (what actually gets sent to the API) is the ID.
   const staffSelect = document.getElementById('prefStaffSelect');
   const allStaff = window._staffCache || await api('/staff', { auth: false });
   staffSelect.innerHTML = '<option value="">No preference</option>' +

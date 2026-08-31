@@ -11,9 +11,6 @@ function clearSession() {
   localStorage.removeItem('user');
 }
 
-// Redirects to the right dashboard for the logged-in role, or to login if
-// there's no session, or if the page requires a role the user doesn't have.
-// Paths point into /html/ since that's where the pages live on disk.
 function requireRole(...allowedRoles) {
   const user = getUser();
   if (!user || !getToken()) {
@@ -53,7 +50,7 @@ function logout() {
   window.location.href = '/html/index.html';
 }
 
-function fmtMoney(n) { return `$${Number(n).toFixed(2)}`; }
+function fmtMoney(n) { return `₹${Number(n).toFixed(2)}`; }
 
 function badge(text) {
   return `<span class="badge ${text}">${text}</span>`;

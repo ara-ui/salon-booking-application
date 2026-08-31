@@ -36,8 +36,9 @@ function generateInvoicePdf({ appointmentId, customerName, serviceName, staffNam
     doc.text(`Date: ${date}`);
     doc.text(`Time: ${startTime}`);
     doc.moveDown();
+    
+    doc.fontSize(14).text(`Amount paid: ₹${Number(amount).toFixed(2)}`);
 
-    doc.fontSize(14).text(`Amount paid: $${Number(amount).toFixed(2)}`, { underline: true });
     doc.moveDown();
     doc.fontSize(12).fillColor('green').text('PAID', { align: 'right' });
 
