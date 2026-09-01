@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login } = require('../controllers/auth.controller');
+const { register, login, forgotPassword, resetPassword } = require('../controllers/auth.controller');
 const { asyncHandler } = require('../middleware/error.middleware');
 
 /**
@@ -63,5 +63,53 @@ router.post('/register', asyncHandler(register));
  *         description: Account deactivated
  */
 router.post('/login', asyncHandler(login));
+
+/**
+ * @swagger
+ * /auth/forgot-password:
+ *   post:
+ *     summary: Request a password reset link
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, example: "priya@example.com" }
+ *     responses:
+ *       200:
+ *         description: >
+ *           Always returns this same generic message, whether or not the
+ *           email is registered, so the endpoint can't be used to check
+ *           which emails exist. If it is registered, a reset email is sent.
+ */
+router.post('/forgot-password', asyncHandler(forgotPassword));
+
+/**
+ * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     summary: Reset a password using the token from the emailed reset link
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, password]
+ *             properties:
+ *               token: { type: string, description: "Raw token from the reset link's ?token= query param" }
+ *               password: { type: string, example: "NewSecurePass123" }
+ *     responses:
+ *       200:
+ *         description: Password updated
+ *       400:
+ *         description: Token missing, invalid, expired, or already used
+ */
+router.post('/reset-password', asyncHandler(resetPassword));
 
 module.exports = router;

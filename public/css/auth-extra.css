@@ -1,0 +1,23 @@
+/* Extra, page-specific styles for forgot-password.html and reset-password.html
+   (plus the "Forgot your password?" link added to index.html). Kept separate
+   from style.css so the shared stylesheet used by every other page is
+   untouched by this feature. */
+.auth-main {
+  max-width: 420px;
+}
+.auth-hint {
+  font-size: 13px;
+  color: #666;
+  margin: 4px 0 12px;
+}
+.auth-back {
+  font-size: 13px;
+  margin-top: 10px;
+}
+.auth-back a {
+  color: #7a4d3a;
+  text-decoration: none;
+}
+.auth-back a:hover {
+  text-decoration: underline;
+}

@@ -9,12 +9,7 @@ function tomorrowDateString() {
   return d.toISOString().slice(0, 10); // 'YYYY-MM-DD'
 }
 
-/**
- * Finds every appointment happening tomorrow (status booked or rescheduled)
- * and emails a reminder to the customer. Exported directly so it can be
- * triggered on demand (admin endpoint, or a test) without waiting for the
- * schedule.
- */
+
 async function runReminderJob() {
   const date = tomorrowDateString();
   const appointments = await Appointment.findAll({
@@ -43,7 +38,7 @@ async function runReminderJob() {
   return { date, remindersSent: sent, skippedOptOut };
 }
 
-// Runs once a day at 08:00 server time. Registered from server.js on startup.
+
 function scheduleReminderJob() {
   cron.schedule('0 8 * * *', () => {
     runReminderJob().catch((err) => console.error('Reminder job failed:', err));

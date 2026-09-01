@@ -50,6 +50,17 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true, // free text — allergies, styling notes, anything a dropdown can't capture
     },
+    // --- Password reset (forgot-password flow) ---
+    // Only the SHA-256 hash of the reset token is ever stored, never the raw
+    // token itself (mirrors how passwordHash never stores the raw password).
+    resetPasswordTokenHash: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    resetPasswordExpires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   }, {
     tableName: 'users',
     timestamps: true,
