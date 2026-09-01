@@ -1,6 +1,3 @@
-// Login / register page logic (index.html).
-
-// If already logged in, skip straight to the right dashboard.
 const existing = getUser();
 if (existing && getToken()) window.location.href = `/html/${existing.role}.html`;
 

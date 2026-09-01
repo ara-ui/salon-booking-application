@@ -1,19 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const {
-  Appointment,
-  Invoice,
-} = require('../../models');
-
+const { Appointment, Invoice } = require('../../models');
 const { AppError } = require('../../middleware/error.middleware');
+const { maybeGenerateInvoice } = require('../../utils/invoiceService');
 const { INVOICE_DIR } = require('../../utils/invoicePdf');
 
-
 async function downloadInvoice(req, res) {
-  const appointment = await Appointment.findByPk(
-    req.params.id
-  );
+  const appointment = await Appointment.findByPk(req.params.id);
 
   if (!appointment) {
     throw new AppError(404, 'Appointment not found');
@@ -31,6 +25,9 @@ async function downloadInvoice(req, res) {
     );
   }
 
+  // Ensure a paid appointment has an invoice and PDF.
+  await maybeGenerateInvoice(appointment.id);
+
   const invoice = await Invoice.findOne({
     where: {
       appointmentId: appointment.id,
@@ -40,7 +37,7 @@ async function downloadInvoice(req, res) {
   if (!invoice) {
     throw new AppError(
       404,
-      'No invoice has been generated for this appointment yet'
+      'No invoice is available for this appointment yet'
     );
   }
 
@@ -49,10 +46,13 @@ async function downloadInvoice(req, res) {
     `invoice-appointment-${appointment.id}.pdf`
   );
 
+  console.log('Invoice download path:', filePath);
+  console.log('Invoice file exists:', fs.existsSync(filePath));
+
   if (!fs.existsSync(filePath)) {
     throw new AppError(
       404,
-      'Invoice file not found on disk'
+      'Invoice file could not be generated'
     );
   }
 
@@ -62,7 +62,4 @@ async function downloadInvoice(req, res) {
   );
 }
 
-
-module.exports = {
-  downloadInvoice,
-};
+module.exports = { downloadInvoice };

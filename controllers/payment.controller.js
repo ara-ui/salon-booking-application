@@ -87,7 +87,7 @@ async function createCashfreeOrder(req, res) {
   });
 
   const cashfreeOrderId = `SALON_ORDER_${appointment.id}_${Date.now()}`;
-  const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const expiryTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
   try {
     const response = await cashfree.PGCreateOrder({
@@ -152,6 +152,8 @@ async function verifyCashfreePayment(req, res) {
   }
 
   if (payment.status === 'succeeded') {
+    await maybeGenerateInvoice(appointment.id);
+
     return res.json({
       status: 'succeeded',
       appointmentPaymentStatus: appointment.paymentStatus,

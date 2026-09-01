@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const RESET_TOKEN_TTL_MINUTES = 30;
+const RESET_TOKEN_TTL_MINUTES = 10;
 
 function hashResetToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');

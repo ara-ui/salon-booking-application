@@ -2,26 +2,40 @@ const nodemailer = require('nodemailer');
 
 let transporter;
 function getTransporter() {
- 
+  // Created lazily so the app doesn't crash on startup if email env vars
+  // aren't set yet — only fails when an email is actually sent.
   if (!transporter) {
     transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: Number(process.env.EMAIL_PORT) || 587,
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      // Without explicit timeouts, a stalled/blocked SMTP handshake falls
+      // back to Node's default (very long) socket timeout, which is what
+      // was causing emails to sometimes take several minutes. These make it
+      // fail fast instead — sendMail() already treats failures as non-fatal.
+      connectionTimeout: 10000, // max time to establish the TCP connection
+      greetingTimeout: 10000,   // max time to wait for the SMTP server's greeting
+      socketTimeout: 20000,     // max time of inactivity on the socket during the send
     });
   }
   return transporter;
 }
+
+// Sending email should never be allowed to break the request that triggered
+// it (a booking, a reminder batch). Log and swallow instead of throwing.
 async function sendMail({ to, subject, html }) {
+  const startedAt = Date.now();
   try {
-    await getTransporter().sendMail({
+    const info = await getTransporter().sendMail({
       from: process.env.EMAIL_FROM || 'no-reply@salon.com',
       to,
       subject,
       html,
     });
+    // Timing only — never log subject/html, which can contain reset links/tokens.
+    console.log(`[email] sent to ${to} in ${Date.now() - startedAt}ms (messageId: ${info.messageId})`);
   } catch (err) {
-    console.warn(`Email to ${to} failed to send (non-fatal):`, err.message);
+    console.warn(`[email] to ${to} failed after ${Date.now() - startedAt}ms (non-fatal):`, err.message);
   }
 }
 
@@ -74,7 +88,7 @@ function sendPasswordResetEmail({ to, name, resetUrl }) {
     html: `
       <p>Hi ${name},</p>
       <p>We received a request to reset your password. Click the link below to choose a new one —
-      it's valid for <b>30 minutes</b> and can only be used once:</p>
+      it's valid for <b>10 minutes</b> and can only be used once:</p>
       <p><a href="${resetUrl}">${resetUrl}</a></p>
       <p>If you didn't request this, you can safely ignore this email — your password won't be changed.</p>
     `,

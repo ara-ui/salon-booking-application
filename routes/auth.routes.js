@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, forgotPassword, resetPassword } = require('../controllers/auth.controller');
+const { register, login, forgotPassword, resetPassword, validateResetToken } = require('../controllers/auth.controller');
 const { asyncHandler } = require('../middleware/error.middleware');
 
 /**
@@ -111,5 +111,25 @@ router.post('/forgot-password', asyncHandler(forgotPassword));
  *         description: Token missing, invalid, expired, or already used
  */
 router.post('/reset-password', asyncHandler(resetPassword));
+
+/**
+ * @swagger
+ * /auth/validate-reset-token:
+ *   get:
+ *     summary: Check whether a password reset token is still valid, before showing the reset form
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema: { type: string }
+ *         description: Raw token from the reset link's ?token= query param
+ *     responses:
+ *       200:
+ *         description: Token is valid (not expired, not already used)
+ *       400:
+ *         description: Token missing, invalid, expired, or already used
+ */
+router.get('/validate-reset-token', asyncHandler(validateResetToken));
 
 module.exports = router;

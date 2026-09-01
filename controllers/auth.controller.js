@@ -13,6 +13,9 @@ async function register(req, res) {
     throw new AppError(400, 'name, email and password are required');
   }
 
+  // Only allow self-registration as a customer. Staff and admin accounts are
+  // created by an admin via POST /staff and PUT /users/:id — never through
+  // this public endpoint, otherwise anyone could register as admin.
   const existing = await User.findOne({ where: { email } });
   if (existing) throw new AppError(409, 'An account with this email already exists');
 
@@ -107,4 +110,30 @@ async function resetPassword(req, res) {
   res.json({ message: 'Your password has been reset. You can now log in.' });
 }
 
-module.exports = { register, login, forgotPassword, resetPassword };
+// Lets the reset-password page check a token BEFORE showing the form, so an
+// expired/used/invalid link doesn't lead the user through filling it out
+// only to fail on submit. Deliberately mirrors the same
+// hash + not-expired lookup used by resetPassword, but never touches or
+// reveals the token/user — it only ever returns a plain success/failure.
+async function validateResetToken(req, res) {
+  const { token } = req.query;
+  if (!token) {
+    throw new AppError(400, 'Reset token is required');
+  }
+
+  const user = await User.findOne({
+    where: {
+      resetPasswordTokenHash: hashResetToken(token),
+      resetPasswordExpires: { [Op.gt]: new Date() },
+    },
+    attributes: ['id'], // existence check only — never leak user details
+  });
+
+  if (!user) {
+    throw new AppError(400, 'That reset link is invalid or has expired');
+  }
+
+  res.json({ valid: true });
+}
+
+module.exports = { register, login, forgotPassword, resetPassword, validateResetToken };
