@@ -12,6 +12,33 @@ function dayKeyFromDate(dateStr) {
   return DAY_KEYS[d.getDay()];
 }
 
+/**
+ * Resolves the salon's effective open ranges for one specific calendar date,
+ * applying any matching entry from SalonSettings.specialDates on top of the
+ * normal weekly workingHours.
+ *   - type 'closed'                  -> salon is shut all day: []
+ *   - type 'special' / 'early_close' -> that date's hours are replaced
+ *     entirely by the entry's { start, end } (e.g. an early-closing time,
+ *     or a one-off special schedule)
+ *   - no matching entry              -> falls back to the normal weekly
+ *     workingHours[dayKey]
+ *
+ * @param {Object} params
+ * @param {Object} params.workingHours - salon's normal weekly hours, e.g. { mon: [...], ... }
+ * @param {Array}  params.specialDates - [{ date: 'YYYY-MM-DD', type, start?, end? }]
+ * @param {string} params.date         - 'YYYY-MM-DD' being checked
+ * @param {string} params.dayKey       - result of dayKeyFromDate(date)
+ * @returns {Array} [{start,end}] in 'HH:MM'
+ */
+function resolveSalonHoursForDate({ workingHours, specialDates = [], date, dayKey }) {
+  const override = (specialDates || []).find((sd) => sd.date === date);
+  if (override) {
+    if (override.type === 'closed') return [];
+    if (override.start && override.end) return [{ start: override.start, end: override.end }];
+  }
+  return (workingHours && workingHours[dayKey]) || [];
+}
+
 function timeToMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
@@ -105,4 +132,5 @@ module.exports = {
   removeConflicts,
   isSlotWithinOpenHours,
   getAvailableSlots,
+  resolveSalonHoursForDate,
 };

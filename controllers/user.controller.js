@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs');
 const { User, Staff } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
 
@@ -53,14 +54,82 @@ async function listUsers(req, res) {
 async function setUserActive(req, res) {
   const { id } = req.params;
   const { isActive } = req.body;
-  if (typeof isActive !== 'boolean') throw new AppError(400, 'isActive (boolean) is required');
+
+  if (typeof isActive !== 'boolean') {
+    throw new AppError(400, 'isActive (boolean) is required');
+  }
 
   const user = await User.findByPk(id);
   if (!user) throw new AppError(404, 'User not found');
 
+  if (isActive === false) {
+    // Admin cannot deactivate their own account.
+    if (Number(id) === req.user.id) {
+      throw new AppError(400, 'You cannot deactivate your own account');
+    }
+
+    // An admin can deactivate another admin,
+    // but never the last active admin.
+    if (user.role === 'admin') {
+      const activeAdminCount = await User.count({
+        where: {
+          role: 'admin',
+          isActive: true,
+        },
+      });
+
+      if (activeAdminCount <= 1) {
+        throw new AppError(
+          400,
+          'Cannot deactivate the last active admin'
+        );
+      }
+    }
+  }
+
   user.isActive = isActive;
   await user.save();
-  res.json({ id: user.id, isActive: user.isActive });
+
+  res.json({
+    id: user.id,
+    isActive: user.isActive,
+  });
 }
 
-module.exports = { getMe, updateMe, listUsers, setUserActive };
+async function createAdmin(req, res) {
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    throw new AppError(400, 'name, email and password are required');
+  }
+
+  const existing = await User.findOne({ where: { email } });
+
+  if (existing) {
+    throw new AppError(409, 'An account with this email already exists');
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const admin = await User.create({
+    name,
+    email,
+    passwordHash,
+    role: 'admin',
+    isActive: true,
+  });
+
+  res.status(201).json({
+    id: admin.id,
+    name: admin.name,
+    email: admin.email,
+    role: admin.role,
+    isActive: admin.isActive,
+  });
+}
+module.exports = {
+   getMe,
+   updateMe,
+   listUsers,
+   setUserActive,
+   createAdmin };

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getMe, updateMe, listUsers, setUserActive } = require('../controllers/user.controller');
+const { getMe, updateMe, listUsers, setUserActive,createAdmin } = require('../controllers/user.controller');
 const { authenticate, requireRole } = require('../middleware/auth.middleware');
 const { asyncHandler } = require('../middleware/error.middleware');
 
@@ -92,5 +92,44 @@ router.get('/', authenticate, requireRole('admin'), asyncHandler(listUsers));
  *       404: { description: User not found }
  */
 router.put('/:id/active', authenticate, requireRole('admin'), asyncHandler(setUserActive));
+/**
+ * @swagger
+ * /users/admin:
+ *   post:
+ *     summary: Create a new admin account (admin only)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       201:
+ *         description: Admin account created
+ *       400:
+ *         description: Required fields missing
+ *       403:
+ *         description: Not an admin
+ *       409:
+ *         description: Email already exists
+ */
+router.post('/admin', authenticate, requireRole('admin'), asyncHandler(createAdmin));
+
 
 module.exports = router;

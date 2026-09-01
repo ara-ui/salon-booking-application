@@ -1,11 +1,104 @@
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
-button.danger { background: #b3452e; }
-button.danger:hover { background: #8f3623; }
 
-/* Weekly working-hours form */
+
+.status-active,
+.status-inactive {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.status-active {
+  color: #3a8a4a;
+}
+
+.status-inactive {
+  color: #b3452e;
+}
+
+
+
+
+button.deactivate-btn {
+  background: #b8860b;
+  color: #fff;
+}
+
+button.deactivate-btn:hover {
+  background: #946f08;
+}
+
+button.activate-btn {
+  background: #3a8a4a;
+  color: #fff;
+}
+
+button.activate-btn:hover {
+  background: #2e713a;
+}
+
+.current-user-label {
+  color: #888;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+
+
+.role-label {
+  text-transform: capitalize;
+}
+
+.role-admin {
+  font-weight: 600;
+}
+
+.role-staff {
+  color: #555;
+}
+
+.role-customer {
+  color: #555;
+}
+
+
+
+
+.form-help,
+.section-description {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+}
+
+.subheading {
+  font-size: 14px;
+  margin-top: 18px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+
+
 .wh-row {
   display: flex;
   align-items: center;
@@ -14,8 +107,17 @@ button.danger:hover { background: #8f3623; }
   border-bottom: 1px solid #eee;
   flex-wrap: wrap;
 }
-.wh-row:last-child { border-bottom: none; }
-.wh-day { width: 100px; font-weight: 500; font-size: 14px; }
+
+.wh-row:last-child {
+  border-bottom: none;
+}
+
+.wh-day {
+  width: 100px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
 .wh-open-toggle {
   display: flex;
   align-items: center;
@@ -25,33 +127,161 @@ button.danger:hover { background: #8f3623; }
   font-size: 13px;
   color: #555;
 }
-.wh-open-toggle input { width: auto; }
-.wh-row input[type="time"] { width: 120px; }
 
-/* Special days list */
+.wh-open-toggle input {
+  width: auto;
+}
+
+.wh-row input[type="time"] {
+  width: 120px;
+}
+
+
+
 .special-day-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  gap: 20px;
+  padding: 12px 0;
   border-bottom: 1px solid #eee;
   font-size: 14px;
 }
-.special-day-row:last-child { border-bottom: none; }
 
-#sdHoursFields { display: flex; gap: 10px; align-items: flex-end; }
-#sdHoursFields label { margin-top: 0; }
+.special-day-row:last-child {
+  border-bottom: none;
+}
 
-/* Payments Received summary cards */
+.special-day-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.special-day-date {
+  font-weight: 600;
+}
+
+.special-day-type {
+  color: #555;
+  font-size: 13px;
+}
+
+.special-day-hours {
+  display: inline-block;
+  margin-left: 8px;
+  color: #7a4d3a;
+  font-weight: 500;
+}
+
+.empty-state {
+  font-size: 13px;
+  color: #888;
+}
+
+
+
+#sdHoursFields {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+.special-time-field {
+  flex: 1;
+}
+
+.special-time-field label {
+  margin-top: 0;
+}
+
+.special-time-separator {
+  padding-bottom: 9px;
+  color: #666;
+}
+
+
+
+.assignment-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assignment-controls select {
+  flex: 1;
+}
+
+.assign-btn.assign-ready {
+  background: #7a4d3a;
+  color: #fff;
+}
+
+.assign-btn.assign-ready:hover {
+  background: #5f3b2c;
+}
+
+
+
+.spaced-table {
+  margin-top: 14px;
+}
+
+
+
 .payment-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns:
+    repeat(auto-fit, minmax(130px, 1fr));
   gap: 12px;
 }
+
 .payment-summary-card {
   margin-bottom: 0;
   padding: 14px;
   text-align: center;
 }
-.ps-label { font-size: 12px; color: #888; margin-bottom: 6px; }
-.ps-value { font-size: 22px; font-weight: 600; color: #2a1f2d; }
+
+.ps-label {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.ps-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: #2a1f2d;
+}
+
+
+
+
+@media (max-width: 700px) {
+
+  .tabs {
+    flex-wrap: wrap;
+  }
+
+  .wh-row {
+    gap: 8px;
+  }
+
+  .special-day-row {
+    align-items: flex-start;
+  }
+
+  .assignment-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #sdHoursFields {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .special-time-separator {
+    display: none;
+  }
+}

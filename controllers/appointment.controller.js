@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const { Service, Staff, User, SalonSettings, Appointment, Invoice } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
-const { dayKeyFromDate, getAvailableSlots, timeToMinutes, minutesToTime, isSlotWithinOpenHours } = require('../utils/availability');
+const { dayKeyFromDate, getAvailableSlots, timeToMinutes, minutesToTime, isSlotWithinOpenHours, resolveSalonHoursForDate } = require('../utils/availability');
 const { sendBookingConfirmation, sendCancellationNotice } = require('../utils/email');
 const { hoursUntil } = require('../utils/datetime');
 const { INVOICE_DIR } = require('../utils/invoicePdf');
@@ -27,7 +27,12 @@ async function getAvailableSlotsHandler(req, res) {
   if (!salonSettings) throw new AppError(404, 'Salon working hours have not been configured yet');
 
   const dayKey = dayKeyFromDate(date);
-  const salonHours = salonSettings.workingHours[dayKey] || [];
+  const salonHours = resolveSalonHoursForDate({
+    workingHours: salonSettings.workingHours,
+    specialDates: salonSettings.specialDates,
+    date,
+    dayKey,
+  });
 
   let staffList;
   if (staffId) {
@@ -71,7 +76,12 @@ async function getAvailableSlotsHandler(req, res) {
 
 function isWithinWorkingHoursBool({ date, startTime, endTime, staff, salonSettings }) {
   const dayKey = dayKeyFromDate(date);
-  const salonHours = salonSettings.workingHours[dayKey] || [];
+  const salonHours = resolveSalonHoursForDate({
+    workingHours: salonSettings.workingHours,
+    specialDates: salonSettings.specialDates,
+    date,
+    dayKey,
+  });
   const staffHours = staff.workingHours?.[dayKey] || [];
   return isSlotWithinOpenHours({ salonHours, staffHours, startTime, endTime });
 }
