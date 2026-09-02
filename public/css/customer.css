@@ -1,14 +1,61 @@
-/* Styles specific to customer.html — the time-slot picker used when booking
-   or rescheduling. Everything else on this page uses the shared style.css. */
+.service-card {
+  margin-bottom: 0; 
+  display: flex;
+  flex-direction: column;
+  height: 100%; 
+}
+.service-card__name { font-size: 15px; }
+.service-card__desc {
+  font-size: 13px;
+  color: #666;
+  flex-grow: 1; 
+}
+.service-card__meta { font-size: 13px; }
+.service-card__book {
+  margin-top: auto; 
+}
+
+
+.slots-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
 .slot-btn {
   display: inline-block;
-  padding: 6px 10px;
-  margin: 4px 4px 0 0;
+  padding: 8px 14px;
   border: 1px solid #7a4d3a;
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
+  font-weight: 500;
   background: #fff;
   color: #7a4d3a;
 }
-.slot-btn.selected { background: #7a4d3a; color: #fff; }
+.slot-btn:hover { background: #f5efec; }
+.slot-btn.selected {
+  background: #7a4d3a;
+  color: #fff;
+  box-shadow: 0 0 0 2px #d8c4ba; 
+}
+.book-confirm-btn {
+  display: block;
+  margin-top: 14px;
+}
+.appt-actions {
+  display: flex;
+  flex-wrap: wrap; 
+  gap: 10px;
+  margin-top: 14px;
+}
+.appt-actions button {
+  margin-top: 0; 
+}
+.appt-back-row {
+  margin-top: 10px;
+}
+
+.table-action-btn {
+  margin-top: 0;
+}

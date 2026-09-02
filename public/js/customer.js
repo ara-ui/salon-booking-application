@@ -11,16 +11,23 @@ async function loadServices() {
   const staff = await api('/staff', { auth: false });
 
   document.getElementById('services').innerHTML = services.map(s => `
-    <div class="card" style="margin-bottom:0">
-      <h2 style="font-size:15px">${s.name}</h2>
-      <p style="font-size:13px;color:#666">${s.description || ''}</p>
-      <p style="font-size:13px">${s.durationMinutes} min &middot; ${fmtMoney(s.price)}</p>
-      <button onclick="openBooking(${s.id}, '${s.name.replace(/'/g,"\\'")}')">Book</button>
+    <div class="card service-card">
+      <h2 class="service-card__name">${s.name}</h2>
+      <p class="service-card__desc">${s.description || ''}</p>
+      <p class="service-card__meta">${s.durationMinutes} min &middot; ${fmtMoney(s.price)}</p>
+      <button class="service-card__book" onclick="bookNewService(${s.id}, '${s.name.replace(/'/g,"\\'")}')">Book</button>
     </div>
   `).join('');
 
   window._staffCache = staff;
 }
+
+function bookNewService(serviceId, serviceName) {
+  rescheduleApptId = null;
+  window._rescheduleStaffId = null;
+  openBooking(serviceId, serviceName);
+}
+
 function openBooking(serviceId, serviceName) {
   const servicesMsg = document.getElementById('servicesMsg');
   const eligibleStaff = (window._staffCache || []).filter(st => (st.Services || []).some(sv => sv.id === serviceId));
@@ -32,10 +39,12 @@ function openBooking(serviceId, serviceName) {
   servicesMsg.innerHTML = '';
 
   selectedServiceId = serviceId;
+  selectedSlot = null;
 
   document.getElementById('bookingServiceName').textContent = serviceName;
   document.getElementById('slots').innerHTML = '';
   document.getElementById('bookingMsg').innerHTML = '';
+  document.getElementById('confirmBookingBtn').disabled = true;
   document.getElementById('bookingPanel').style.display = '';
   document.getElementById('bookingPanel').scrollIntoView({ behavior: 'smooth' });
 }
@@ -44,6 +53,8 @@ document.getElementById('loadSlotsBtn').onclick = async () => {
   const date = document.getElementById('bookingDate').value;
   const msg = document.getElementById('bookingMsg');
   msg.innerHTML = '';
+  selectedSlot = null;
+  document.getElementById('confirmBookingBtn').disabled = true;
   if (!date) { msg.innerHTML = '<p class="error">Pick a date first.</p>'; return; }
 
   try {
@@ -65,8 +76,7 @@ document.getElementById('loadSlotsBtn').onclick = async () => {
     if (res.slots.length === 0) {
       slotsDiv.innerHTML = '<p>No free slots that day — try another date.</p>';
     } else {
-      slotsDiv.innerHTML = res.slots.map(s => `<span class="slot-btn" data-time="${s.startTime}" onclick="pickSlot(this)">${s.startTime}</span>`).join('');
-    }
+      slotsDiv.innerHTML = res.slots.map(s => `<span class="slot-btn" data-time="${s.startTime}" onclick="pickSlot(this)">${s.startTime}–${s.endTime}</span>`).join('');    }
   } catch (err) {
     msg.innerHTML = `<p class="error">${err.message}</p>`;
   }
@@ -76,12 +86,16 @@ function pickSlot(el) {
   document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
   selectedSlot = el.dataset.time;
-  confirmBooking();
+  document.getElementById('confirmBookingBtn').disabled = false;
 }
+
+document.getElementById('confirmBookingBtn').onclick = confirmBooking;
 
 async function confirmBooking() {
   const date = document.getElementById('bookingDate').value;
   const msg = document.getElementById('bookingMsg');
+  const confirmBtn = document.getElementById('confirmBookingBtn');
+  confirmBtn.disabled = true; // guards against double-submit while the request is in flight
   try {
     if (rescheduleApptId) {
      await api(`/appointments/${rescheduleApptId}/reschedule`, { method: 'PUT', body: { date, startTime: selectedSlot } });
@@ -95,6 +109,7 @@ async function confirmBooking() {
     loadAppointments();
   } catch (err) {
     msg.innerHTML = `<p class="error">${err.message}</p>`;
+    confirmBtn.disabled = false; // let them retry — e.g. pick a different slot — without starting over
   }
 }
 
@@ -108,7 +123,7 @@ async function loadAppointments() {
       <td>${a.startTime}</td>
       <td>${badge(a.status)}</td>
       <td>${badge(a.paymentStatus)}</td>
-      <td><button class="secondary" style="margin-top:0" onclick="viewDetail(${a.id})">View</button></td>
+      <td><button class="table-action-btn" onclick="viewDetail(${a.id})">View</button></td>
     </tr>
   `).join('') || '<tr><td colspan="7">No appointments yet.</td></tr>';
 }
@@ -119,19 +134,33 @@ async function viewDetail(id) {
   panel.style.display = '';
   panel.scrollIntoView({ behavior: 'smooth' });
 
-  let actions = '';
-  if (a.paymentStatus === 'unpaid' && a.status !== 'cancelled') {
-    actions += `<button onclick="payNow(${a.id})">Pay now</button>`;
+  const isPaid = a.paymentStatus === 'paid';
+  // Reschedule/Cancel only ever made sense for a still-open appointment;
+  // now they're also disabled once paid, per the payment-state rules.
+  const canModify = (a.status === 'booked' || a.status === 'rescheduled') && !isPaid;
+
+  let payNowBtn = '';
+  if (!isPaid && a.status !== 'cancelled') {
+    payNowBtn = `<button onclick="payNow(${a.id})">Pay now</button>`;
   }
-  if (a.paymentStatus === 'paid') {
-    actions += `<button class="secondary" onclick="downloadInvoice(${a.id})">Download invoice</button>`;
-  }
-  if (a.status === 'booked' || a.status === 'rescheduled') {
-    actions += `<button class="secondary" onclick="startReschedule(${a.id}, ${a.serviceId}, ${a.staffId}, '${a.Service.name.replace(/'/g,"\\'")}')">Reschedule</button>`;
-    actions += `<button class="danger" onclick="cancelAppt(${a.id})">Cancel</button>`;
-  }
+
+  const downloadAttr = isPaid ? '' : 'disabled';
+  const modifyAttr = canModify ? '' : 'disabled';
+
+  const actionsRow = `
+    <div class="appt-actions">
+      <button class="btn-success" ${downloadAttr} onclick="downloadInvoice(${a.id})">Download Invoice</button>
+      <button class="secondary" ${modifyAttr} onclick="startReschedule(${a.id}, ${a.serviceId}, ${a.staffId}, '${a.Service.name.replace(/'/g,"\\'")}')">Reschedule</button>
+      <button class="danger" ${modifyAttr} onclick="cancelAppt(${a.id})">Cancel</button>
+    </div>
+    <div class="appt-back-row">
+      <button class="outline" onclick="document.getElementById('detailPanel').style.display='none'">Back</button>
+    </div>
+  `;
+
+  let reviewSection = '';
   if (a.status === 'completed') {
-    actions += `
+    reviewSection = `
       <div style="margin-top:14px">
         <label>Rating (1-5)</label>
         <input type="number" id="reviewRating" min="1" max="5" value="5" />
@@ -148,7 +177,9 @@ async function viewDetail(id) {
     <p><b>Date:</b> ${a.date} at ${a.startTime}</p>
     <p><b>Status:</b> ${badge(a.status)} &nbsp; <b>Payment:</b> ${badge(a.paymentStatus)}</p>
     <div id="detailMsg"></div>
-    ${actions}
+    ${payNowBtn}
+    ${actionsRow}
+    ${reviewSection}
   `;
 }
 

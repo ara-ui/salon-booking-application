@@ -1,5 +1,4 @@
-/* Shared base styles used by every page. Page-specific rules live in
-   customer.css / staff.css / admin.css instead of being duplicated here. */
+
 * { box-sizing: border-box; }
 body {
   font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -67,6 +66,15 @@ button {
 button:hover { background: #5f3b2c; }
 button.secondary { background: #999; }
 button.danger { background: #b3452e; }
+
+button.btn-success { background: #3a8a4a; color: #fff; }
+button.outline { background: #fff; color: #7a4d3a; border: 1px solid #7a4d3a; }
+
+button:disabled, button:disabled:hover {
+  background: #ccc;
+  color: #888;
+  cursor: not-allowed;
+}
 table { 
     width: 100%; 
     border-collapse: collapse; 
@@ -108,9 +116,8 @@ th, td {
     color: #3a8a4a; 
     font-size: 13px;
      margin-top: 8px; }
-/* .tabs is shared — used by both index.html (login/register toggle) and
-   admin.html (dashboard tabs), so it lives here rather than in admin.css. */
-.tabs { 
+
+     .tabs { 
     display: flex; 
     gap: 8px; 
     margin-bottom: 16px; 
