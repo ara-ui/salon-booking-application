@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -59,10 +60,37 @@ async function start() {
     console.log('Database connection established.');
 
     await sequelize.sync({ alter: true });
+
+    // The old unique index on (staffId, date, startTime)
+    // incorrectly blocks cancelled appointments from being
+    // rebooked. Keep a separate staffId index for the FK,
+    // then remove the old unique index.
+    const queryInterface = sequelize.getQueryInterface();
+
+    try {
+      await queryInterface.addIndex('appointments', ['staffId'], {
+        name: 'idx_appointments_staff_id',
+      });
+
+      console.log('Staff index created.');
+    } catch (err) {
+      // Index may already exist.
+    }
+
+    try {
+      await queryInterface.removeIndex(
+        'appointments',
+        'appointments_staff_id_date_start_time'
+      );
+
+      console.log('Old appointment unique index removed.');
+    } catch (err) {
+      // Old index may already be removed.
+    }
+
+    console.log('Appointment indexes updated.');
     console.log('Models synced.');
 
-    // Create the first admin only when no admin currently exists.
-    // Admins created later should be created through the admin-management flow.
     if (
       process.env.INITIAL_ADMIN_EMAIL &&
       process.env.INITIAL_ADMIN_PASSWORD

@@ -69,12 +69,6 @@ module.exports = (sequelize) => {
     tableName: 'appointments',
     timestamps: true,
 
-    indexes: [
-      {
-        unique: true,
-        fields: ['staffId', 'date', 'startTime'],
-      },
-    ],
   });
 
   return Appointment;
