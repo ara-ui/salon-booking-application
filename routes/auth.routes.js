@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { register, login, forgotPassword, resetPassword, validateResetToken } = require('../controllers/auth.controller');
 const { asyncHandler } = require('../middleware/error.middleware');
+const { createRateLimiter } = require('../middleware/rateLimit.middleware');
+
+const authLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 12 });
+const resetLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 8 });
 
 /**
  * @swagger
@@ -36,7 +40,7 @@ const { asyncHandler } = require('../middleware/error.middleware');
  *       409:
  *         description: Email already registered
  */
-router.post('/register', asyncHandler(register));
+router.post('/register', authLimiter, asyncHandler(register));
 
 /**
  * @swagger
@@ -62,7 +66,7 @@ router.post('/register', asyncHandler(register));
  *       403:
  *         description: Account deactivated
  */
-router.post('/login', asyncHandler(login));
+router.post('/login', authLimiter, asyncHandler(login));
 
 /**
  * @swagger
@@ -86,7 +90,7 @@ router.post('/login', asyncHandler(login));
  *           email is registered, so the endpoint can't be used to check
  *           which emails exist. If it is registered, a reset email is sent.
  */
-router.post('/forgot-password', asyncHandler(forgotPassword));
+router.post('/forgot-password', resetLimiter, asyncHandler(forgotPassword));
 
 /**
  * @swagger
@@ -110,7 +114,7 @@ router.post('/forgot-password', asyncHandler(forgotPassword));
  *       400:
  *         description: Token missing, invalid, expired, or already used
  */
-router.post('/reset-password', asyncHandler(resetPassword));
+router.post('/reset-password', resetLimiter, asyncHandler(resetPassword));
 
 /**
  * @swagger
@@ -130,6 +134,6 @@ router.post('/reset-password', asyncHandler(resetPassword));
  *       400:
  *         description: Token missing, invalid, expired, or already used
  */
-router.get('/validate-reset-token', asyncHandler(validateResetToken));
+router.get('/validate-reset-token', resetLimiter, asyncHandler(validateResetToken));
 
 module.exports = router;

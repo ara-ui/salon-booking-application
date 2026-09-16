@@ -8,6 +8,7 @@ const {
 } = require('../../models');
 
 const { AppError } = require('../../middleware/error.middleware');
+const { isValidDateString, isFutureDateTime } = require('../../utils/validation');
 
 const {
   dayKeyFromDate,
@@ -18,11 +19,18 @@ const {
 
 async function getAssignedStaff(serviceId) {
   return Staff.findAll({
-    include: [{
-      association: Staff.associations.Services,
-      where: { id: serviceId },
-      attributes: [],
-    }],
+    include: [
+      {
+        model: require('../../models').User,
+        where: { isActive: true },
+        attributes: ['id', 'name'],
+      },
+      {
+        association: Staff.associations.Services,
+        where: { id: serviceId, isActive: true },
+        attributes: [],
+      },
+    ],
   });
 }
 
@@ -54,7 +62,7 @@ async function getAvailableSlotsHandler(req, res) {
     throw new AppError(400, 'serviceId and date query params are required');
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!isValidDateString(date)) {
     throw new AppError(400, 'date must be in YYYY-MM-DD format');
   }
 
@@ -62,6 +70,12 @@ async function getAvailableSlotsHandler(req, res) {
 
   if (!service) {
     throw new AppError(404, 'Service not found');
+  }
+  if (!service.isActive) {
+    throw new AppError(400, 'This service is no longer available for booking');
+  }
+  if (new Date(`${date}T23:59:59`).getTime() < Date.now()) {
+    throw new AppError(400, 'Please choose a future date');
   }
 
   const salonSettings = await SalonSettings.findByPk(1);
@@ -82,10 +96,12 @@ async function getAvailableSlotsHandler(req, res) {
   let staffList;
 
   if (staffId) {
-    const staff = await Staff.findByPk(staffId);
+    const staff = await Staff.findByPk(staffId, {
+      include: [{ model: require('../../models').User, where: { isActive: true }, attributes: ['id', 'name'] }, { association: Staff.associations.Services, where: { id: serviceId, isActive: true }, attributes: [] }],
+    });
 
     if (!staff) {
-      throw new AppError(404, 'Staff member not found');
+      throw new AppError(404, 'Staff member is not available for this service');
     }
 
     staffList = [staff];
@@ -116,7 +132,7 @@ async function getAvailableSlotsHandler(req, res) {
       staffHours: staff.workingHours?.[dayKey] || [],
       durationMinutes: service.durationMinutes,
       existingBookings: existingBookings.map(b => b.toJSON()),
-    });
+    }).filter(slot => isFutureDateTime(date, slot.startTime));
 
     slots.forEach(slot => slotMap.set(slot.startTime, slot));
   }

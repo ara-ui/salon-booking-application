@@ -13,6 +13,8 @@ const {
   getAllAppointments,
   rescheduleAppointment,
   cancelAppointment,
+  generateCompletionCode,
+  verifyCompletionCode,
   updateAppointmentStatus,
 } = require('./appointment/management');
 
@@ -30,6 +32,8 @@ module.exports = {
   getAllAppointments,
   rescheduleAppointment,
   cancelAppointment,
+  generateCompletionCode,
+  verifyCompletionCode,
   updateAppointmentStatus,
   downloadInvoice,
 };

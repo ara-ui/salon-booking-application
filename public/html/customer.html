@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Glow Salon — My Account</title>
 <link rel="stylesheet" href="../css/style.css" />
 <link rel="stylesheet" href="../css/customer.css" />
@@ -9,67 +10,102 @@
 <body>
 <header>
   <h1>Glow Salon</h1>
-  <nav><span id="welcome"></span><span class="logout" onclick="logout()">Logout</span></nav>
+  <nav>
+    <span id="welcome"></span>
+    <div class="notification-center" id="notificationCenter">
+      <button class="notification-btn" id="notificationBtn" type="button" aria-label="Notifications" aria-expanded="false">
+        <span aria-hidden="true">🔔</span>
+        <span class="notification-count" id="notificationCount" hidden>0</span>
+      </button>
+      <div class="notification-panel" id="notificationPanel" hidden>
+        <div class="notification-panel__header"><strong>Notifications</strong><button type="button" class="notification-clear" id="clearNotificationsBtn">Clear</button></div>
+        <div id="notificationList" class="notification-list"></div>
+      </div>
+    </div>
+    <button class="header-logout" id="logoutBtn" type="button">Logout</button>
+  </nav>
 </header>
 <main>
+  <section class="card customer-hero">
+  <p class="page-eyebrow">Your glow, your moment</p>
+  <h2 id="heroGreeting">Welcome back 👋</h2>
+  <p>Take a little time for yourself. Your next salon experience is just a booking away.</p>
+  <button id="heroBookBtn" type="button">Book your appointment</button>
+</section>
 
-  <div class="card">
-    <h2>Book an appointment</h2>
+  <section class="card" id="servicesSection">
+    <div class="section-heading">
+      <div><p class="page-eyebrow">Treat yourself</p><h2>Our services</h2></div>
+      <span class="muted" id="servicesCount"></span>
+    </div>
     <div id="servicesMsg"></div>
     <div id="services" class="grid"></div>
-  </div>
+  </section>
 
-  <div class="card" id="bookingPanel" style="display:none">
-    <h2>Book: <span id="bookingServiceName"></span></h2>
-    <label>Date</label>
-    <input type="date" id="bookingDate" />
-    <button id="loadSlotsBtn">Find available times</button>
-    <div id="slots" class="slots-area"></div>
-    <button id="confirmBookingBtn" class="book-confirm-btn" disabled>Book Appointment</button>
+  <section class="card booking-panel" id="bookingPanel" style="display:none">
+    <div class="section-heading">
+      <div><p class="page-eyebrow">Easy booking</p><h2 id="bookingHeading">Book your appointment</h2></div>
+      <button class="outline" id="closeBookingBtn" type="button">Close</button>
+    </div>
+
+    <div class="booking-step">
+      <div class="step-label"><span class="step-number">1</span> Service</div>
+      <div class="booking-service-summary">
+        <strong id="bookingServiceName"></strong>
+        <span id="bookingServiceMeta"></span>
+      </div>
+    </div>
+
+    <div class="booking-step">
+      <div class="step-label"><span class="step-number">2</span> Choose a date</div>
+      <label for="bookingDate">Appointment date</label>
+      <input type="date" id="bookingDate" />
+      <button id="loadSlotsBtn" type="button">Show available times</button>
+    </div>
+
+    <div class="booking-step">
+      <div class="step-label"><span class="step-number">3</span> Choose a time</div>
+      <div id="slots" class="slots-area"></div>
+    </div>
+
+    <div class="booking-step">
+      <div class="step-label"><span class="step-number">4</span> Review</div>
+      <div id="bookingSummary" class="booking-service-summary">Choose a date and time to see your appointment summary.</div>
+      <button id="confirmBookingBtn" class="book-confirm-btn" type="button" disabled>Confirm appointment</button>
+    </div>
     <div id="bookingMsg"></div>
-  </div>
+  </section>
 
-  <div class="card">
-    <h2>My appointments</h2>
-    <table>
-      <thead><tr><th>Service</th><th>Staff</th><th>Date</th><th>Time</th><th>Status</th><th>Payment</th><th>Actions</th></tr></thead>
-      <tbody id="apptRows"></tbody>
-    </table>
-  </div>
+  <section class="card">
+    <div class="section-heading"><div><p class="page-eyebrow">Your visits</p><h2>My appointments</h2></div></div>
+    <div id="apptRows" class="appointment-list"></div>
+  </section>
 
-  <div class="card" id="detailPanel" style="display:none"></div>
+  <section class="card detail-card" id="detailPanel" style="display:none"></section>
 
-  <div class="card">
-    <h2>Payment history</h2>
-    <table>
-      <thead><tr><th>Date</th><th>Appointment</th><th>Service</th><th>Amount</th><th>Status</th><th>Payment ID</th></tr></thead>
-      <tbody id="paymentHistoryRows"></tbody>
-    </table>
-  </div>
+  <section class="card">
+    <div class="section-heading"><div><p class="page-eyebrow">Receipts</p><h2>Payment history</h2></div></div>
+    <div id="paymentHistoryRows" class="payment-list"></div>
+  </section>
 
-  <div class="card">
-    <h2>My preferences</h2>
+  <section class="card">
+    <div class="section-heading"><div><p class="page-eyebrow">Personalize</p><h2>My preferences</h2></div></div>
     <div id="prefMsg"></div>
-
-    <div id="prefSummary" style="display:none">
-      <p><b>Preferred staff:</b> <span id="prefSummaryStaff"></span></p>
-      <p><b>Reminder emails:</b> <span id="prefSummaryReminder"></span></p>
-      <p><b>Notes:</b> <span id="prefSummaryNotes"></span></p>
-      <button class="secondary" onclick="showPreferenceForm()">Edit Preferences</button>
+    <div id="prefSummary" class="preference-summary" style="display:none">
+      <div class="preference-row"><span>Preferred staff</span><strong id="prefSummaryStaff"></strong></div>
+      <div class="preference-row"><span>Reminder emails</span><strong id="prefSummaryReminder"></strong></div>
+      <div class="preference-row"><span>Notes</span><strong id="prefSummaryNotes"></strong></div>
+      <button class="secondary" id="editPreferencesBtn" type="button">Edit preferences</button>
     </div>
-
     <div id="prefForm">
-      <label>Preferred staff member</label>
+      <label for="prefStaffSelect">Preferred staff member</label>
       <select id="prefStaffSelect"><option value="">No preference</option></select>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
-        <input type="checkbox" id="prefReminderOptIn" style="width:auto" /> Send me reminder emails
-      </label>
-      <label>Notes (allergies, styling preferences, anything else)</label>
-      <textarea id="prefNotes" rows="3"></textarea>
-      <button onclick="savePreferences()">Save preferences</button>
+      <label class="checkbox-label"><input type="checkbox" id="prefReminderOptIn" /> Send me reminder emails</label>
+      <label for="prefNotes">Notes for your visits</label>
+      <textarea id="prefNotes" rows="3" maxlength="2000" placeholder="Anything you'd like the salon team to know?"></textarea>
+      <button id="savePreferencesBtn" type="button">Save preferences</button>
     </div>
-  </div>
-
+  </section>
 </main>
 
 <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>

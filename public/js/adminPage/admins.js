@@ -27,7 +27,7 @@ async function loadAdmins() {
                   <button
                     class="${admin.isActive ? 'deactivate-btn' : 'activate-btn'}"
                     style="margin-top:0"
-                    onclick="toggleAdminActive(${admin.id}, ${!admin.isActive}, '${escapeHtml(admin.name)}')"
+                    data-admin-id="${admin.id}" data-admin-name="${escapeHtml(admin.name)}" onclick="toggleAdminActive(${admin.id}, ${!admin.isActive})"
                   >
                     ${admin.isActive ? 'Deactivate' : 'Activate'}
                   </button>
@@ -51,8 +51,9 @@ async function loadAdmins() {
 }
 
 
-async function toggleAdminActive(id, nextIsActive, name) {
+async function toggleAdminActive(id, nextIsActive) {
   const verb = nextIsActive ? 'activate' : 'deactivate';
+  const name = document.querySelector(`button[data-admin-id="${id}"]`)?.dataset.adminName || 'this administrator';
 
   if (!confirm(`Are you sure you want to ${verb} ${name}'s account?`)) {
     return;

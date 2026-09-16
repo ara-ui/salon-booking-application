@@ -5,13 +5,9 @@ let _lastAssignedServiceIdByStaff = {};
 
 async function loadStaff() {
   try {
-    _allServices = await api('/services', {
-      auth: false
-    });
+    _allServices = await api('/services/admin/all');
 
-    const staff = await api('/staff', {
-      auth: false
-    });
+    const staff = await api('/staff/admin/all');
 
     document.getElementById('staffRows').innerHTML =
       staff.map(renderStaffRow).join('');

@@ -16,6 +16,7 @@ const {
   isSlotWithinOpenHours,
   resolveSalonHoursForDate,
 } = require('../../utils/availability');
+const { isValidDateString, isValidTimeString, isFutureDateTime } = require('../../utils/validation');
 
 const { sendBookingConfirmation } = require('../../utils/email');
 
@@ -30,6 +31,9 @@ async function lockStaff(staffId, transaction) {
   if (!staff) {
     throw new AppError(404, 'Staff member not found');
   }
+  if (!staff.User?.isActive) {
+    throw new AppError(400, 'That staff member is not currently available');
+  }
 
   return staff;
 }
@@ -40,7 +44,7 @@ async function isStaffAssignedToService(staffId, serviceId, transaction) {
     where: { id: staffId },
     include: [{
       association: Staff.associations.Services,
-      where: { id: serviceId },
+      where: { id: serviceId, isActive: true },
       attributes: [],
     }],
     transaction,
@@ -134,15 +138,20 @@ async function findAvailableStaff({
   transaction,
 }) {
   const candidates = await Staff.findAll({
-    include: [{
-      association: Staff.associations.Services,
-      where: { id: serviceId },
-      attributes: [],
-    }],
+    include: [
+      { model: User, where: { isActive: true }, attributes: ['id', 'name', 'isActive'] },
+      {
+        association: Staff.associations.Services,
+        where: { id: serviceId, isActive: true },
+        attributes: [],
+      },
+    ],
     transaction,
   });
 
-  if (!candidates.length) {
+  const activeCandidates = candidates.filter(candidate => candidate.User?.isActive !== false);
+
+  if (!activeCandidates.length) {
     throw new AppError(
       400,
       'No staff is currently assigned to this service'
@@ -153,10 +162,10 @@ async function findAvailableStaff({
 
   const ordered = preferredStaffId
     ? [
-        ...candidates.filter(s => s.id === preferredStaffId),
-        ...candidates.filter(s => s.id !== preferredStaffId),
+        ...activeCandidates.filter(s => s.id === preferredStaffId),
+        ...activeCandidates.filter(s => s.id !== preferredStaffId),
       ]
-    : candidates;
+    : activeCandidates;
 
   let withinHours = false;
 
@@ -217,11 +226,26 @@ async function bookAppointment(req, res) {
   if (!service) {
     throw new AppError(404, 'Service not found');
   }
+  if (!service.isActive) {
+    throw new AppError(400, 'This service is no longer available for booking');
+  }
+  if (!isValidDateString(date)) {
+    throw new AppError(400, 'date must be in YYYY-MM-DD format');
+  }
+  if (!isValidTimeString(startTime)) {
+    throw new AppError(400, 'startTime must be in HH:MM format');
+  }
+  if (!isFutureDateTime(date, startTime)) {
+    throw new AppError(400, 'Please choose a future date and time');
+  }
 
   const customer = await User.findByPk(req.user.id);
 
   if (!customer) {
     throw new AppError(404, 'Customer not found');
+  }
+  if (!customer.isActive) {
+    throw new AppError(403, 'Your account is not active');
   }
 
   const endTime = minutesToTime(

@@ -3,6 +3,8 @@ const router = express.Router();
 const { createCashfreeOrder, verifyCashfreePayment, getMyPayments, getAllPayments } = require('../controllers/payment.controller');
 const { authenticate, requireRole } = require('../middleware/auth.middleware');
 const { asyncHandler } = require('../middleware/error.middleware');
+const { createRateLimiter } = require('../middleware/rateLimit.middleware');
+const paymentLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 20 });
 
 /**
  * @swagger
@@ -42,7 +44,7 @@ const { asyncHandler } = require('../middleware/error.middleware');
  *       403: { description: Not your appointment }
  *       404: { description: Appointment not found }
  */
-router.post('/checkout', authenticate, requireRole('customer'), asyncHandler(createCashfreeOrder));
+router.post('/checkout', paymentLimiter, authenticate, requireRole('customer'), asyncHandler(createCashfreeOrder));
 
 /**
  * @swagger
@@ -71,7 +73,7 @@ router.post('/checkout', authenticate, requireRole('customer'), asyncHandler(cre
  *       403: { description: Not your payment }
  *       404: { description: No payment found for this order }
  */
-router.post('/verify', authenticate, requireRole('customer'), asyncHandler(verifyCashfreePayment));
+router.post('/verify', paymentLimiter, authenticate, requireRole('customer'), asyncHandler(verifyCashfreePayment));
 
 /**
  * @swagger

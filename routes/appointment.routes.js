@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   getAvailableSlotsHandler, bookAppointment, getAppointmentById, getMyAppointments,
   getStaffAppointments, getAllAppointments, rescheduleAppointment, cancelAppointment,
-  updateAppointmentStatus, downloadInvoice,
+  generateCompletionCode, verifyCompletionCode, updateAppointmentStatus, downloadInvoice,
 } = require('../controllers/appointment.controller');
 const { authenticate, requireRole } = require('../middleware/auth.middleware');
 const { asyncHandler } = require('../middleware/error.middleware');
@@ -215,10 +215,58 @@ router.put('/:id/cancel', authenticate, asyncHandler(cancelAppointment));
 
 /**
  * @swagger
+ * /appointments/{id}/completion-code:
+ *   post:
+ *     summary: Customer generates a one-time completion code after the service ends
+ *     tags: [Appointments]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Six-digit completion code for the customer who owns the appointment }
+ *       400: { description: Appointment has not finished or is not eligible }
+ *       403: { description: Not the assigned staff member }
+ *       404: { description: Not found }
+ */
+router.post('/:id/completion-code', authenticate, requireRole('customer'), asyncHandler(generateCompletionCode));
+
+/**
+ * @swagger
+ * /appointments/{id}/verify-completion:
+ *   post:
+ *     summary: Staff verifies the customer-generated completion code
+ *     tags: [Appointments]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code]
+ *             properties:
+ *               code: { type: string, pattern: "^[0-9]{6}$" }
+ *     responses:
+ *       200: { description: Appointment marked completed and payment unlocked }
+ *       400: { description: Invalid or unavailable completion code }
+ *       403: { description: Not your appointment }
+ *       404: { description: Not found }
+ */
+router.post('/:id/verify-completion', authenticate, requireRole('staff', 'admin'), asyncHandler(verifyCompletionCode));
+
+/**
+ * @swagger
  * /appointments/{id}/status:
  *   put:
- *     summary: Mark an appointment completed (assigned staff member, or admin)
- *     description: If the appointment is marked completed and is already paid, this generates the PDF invoice (see GET /appointments/{id}/invoice).
+ *     summary: Admin-only appointment status override
+ *     description: Admin-only status override. Normal staff completion uses POST /appointments/{id}/verify-completion.
  *     tags: [Appointments]
  *     security: [{ bearerAuth: [] }]
  *     parameters:

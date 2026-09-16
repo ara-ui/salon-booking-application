@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { User, Staff } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
+const { cleanString, isValidEmail } = require('../utils/validation');
 
 async function getMe(req, res) {
   const user = await User.findByPk(req.user.id, {
@@ -16,15 +17,19 @@ async function updateMe(req, res) {
   const user = await User.findByPk(req.user.id);
   if (!user) throw new AppError(404, 'User not found');
 
-  if (name) user.name = name;
-  if (phone) user.phone = phone;
+  if (name !== undefined) {
+    const cleanName = cleanString(name, 120);
+    if (cleanName.length < 2) throw new AppError(400, 'Name must be at least 2 characters');
+    user.name = cleanName;
+  }
+  if (phone !== undefined) user.phone = cleanString(phone, 40) || null;
 
   if (preferredStaffId !== undefined) {
     if (preferredStaffId === null) {
       user.preferredStaffId = null; // explicit "clear my preference"
     } else {
-      const staff = await Staff.findByPk(preferredStaffId);
-      if (!staff) throw new AppError(404, 'No such staff member to set as preferred');
+      const staff = await Staff.findByPk(preferredStaffId, { include: [{ model: User, attributes: ['id', 'isActive'] }] });
+      if (!staff || !staff.User?.isActive) throw new AppError(404, 'No active staff member matches that preference');
       user.preferredStaffId = preferredStaffId;
     }
   }
@@ -32,7 +37,7 @@ async function updateMe(req, res) {
     if (typeof reminderOptIn !== 'boolean') throw new AppError(400, 'reminderOptIn must be true or false');
     user.reminderOptIn = reminderOptIn;
   }
-  if (preferenceNotes !== undefined) user.preferenceNotes = preferenceNotes;
+  if (preferenceNotes !== undefined) user.preferenceNotes = cleanString(preferenceNotes, 2000) || null;
 
   await user.save();
 
@@ -97,11 +102,16 @@ async function setUserActive(req, res) {
 }
 
 async function createAdmin(req, res) {
-  const { name, email, password } = req.body;
+  const { name, password } = req.body;
+  const cleanName = cleanString(name, 120);
+  const email = cleanString(req.body.email, 254).toLowerCase();
 
-  if (!name || !email || !password) {
+  if (!cleanName || !email || !password) {
     throw new AppError(400, 'name, email and password are required');
   }
+  if (cleanName.length < 2) throw new AppError(400, 'Name must be at least 2 characters');
+  if (!isValidEmail(email)) throw new AppError(400, 'Please provide a valid email address');
+  if (typeof password !== 'string' || password.length < 6 || password.length > 128) throw new AppError(400, 'Password must be between 6 and 128 characters');
 
   const existing = await User.findOne({ where: { email } });
 
@@ -112,7 +122,7 @@ async function createAdmin(req, res) {
   const passwordHash = await bcrypt.hash(password, 10);
 
   const admin = await User.create({
-    name,
+    name: cleanName,
     email,
     passwordHash,
     role: 'admin',

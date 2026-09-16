@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Glow Salon — Admin</title>
 
 <link rel="stylesheet" href="../css/style.css" />
@@ -13,23 +14,43 @@
 <header>
   <h1>Glow Salon — Admin</h1>
 
-  <nav>
-    <span id="welcome"></span>
-    <span class="logout" onclick="logout()">Logout</span>
-  </nav>
+  <nav><span id="welcome"></span><button class="header-logout" id="logoutBtn" type="button">Logout</button></nav>
 </header>
 
 <main>
+  <section class="page-intro">
+    <p class="page-eyebrow">Salon management</p>
+    <h2>Admin workspace</h2>
+    <p>Manage the day-to-day salon operations from one place.</p>
+  </section>
 
-  <!-- Dashboard navigation -->
-  <div class="tabs">
-    <button class="active" onclick="showTab('users', this)">Users</button>
-    <button onclick="showTab('admins', this)">Admins</button>
-    <button onclick="showTab('services', this)">Services</button>
-    <button onclick="showTab('staff', this)">Staff</button>
-    <button onclick="showTab('appointments', this)">Appointments</button>
-    <button onclick="showTab('payments', this)">Payments</button>
-    <button onclick="showTab('settings', this)">Salon Settings</button>
+  <div class="admin-shell">
+    <aside class="admin-sidebar tabs" aria-label="Admin navigation">
+      <button class="active" type="button" onclick="showTab('dashboard', this)">Dashboard</button>
+      <button type="button" onclick="showTab('users', this)">Customers & Staff</button>
+      <button type="button" onclick="showTab('admins', this)">Administrators</button>
+      <button type="button" onclick="showTab('services', this)">Services</button>
+      <button type="button" onclick="showTab('staff', this)">Staff</button>
+      <button type="button" onclick="showTab('appointments', this)">Appointments</button>
+      <button type="button" onclick="showTab('payments', this)">Payments</button>
+      <button type="button" onclick="showTab('reviews', this)">Reviews</button>
+      <button type="button" onclick="showTab('settings', this)">Salon Settings</button>
+    </aside>
+
+    <div class="admin-content">
+
+  <!-- ================= DASHBOARD ================= -->
+  <div id="tab-dashboard" class="tab">
+    <div class="admin-dashboard-grid">
+      <div class="admin-stat"><small>Today's appointments</small><strong id="dashToday">—</strong></div>
+      <div class="admin-stat"><small>Upcoming appointments</small><strong id="dashUpcoming">—</strong></div>
+      <div class="admin-stat"><small>Completed appointments</small><strong id="dashCompleted">—</strong></div>
+      <div class="admin-stat"><small>Revenue received</small><strong id="dashRevenue">—</strong></div>
+    </div>
+    <div class="card">
+      <div class="section-heading"><div><p class="page-eyebrow">Today</p><h2>Today's appointments</h2></div></div>
+      <div id="dashboardAppointments"></div>
+    </div>
   </div>
 
 
@@ -42,7 +63,7 @@
 
       <div id="userMsg"></div>
 
-      <table>
+      <div class="table-wrap"><table>
         <thead>
           <tr>
             <th>Name</th>
@@ -55,6 +76,7 @@
 
         <tbody id="userRows"></tbody>
       </table>
+      </div>
     </div>
 
   </div>
@@ -115,7 +137,7 @@
 
       <div id="adminListMsg"></div>
 
-      <table>
+      <div class="table-wrap"><table>
 
         <thead>
           <tr>
@@ -129,6 +151,7 @@
         <tbody id="adminRows"></tbody>
 
       </table>
+      </div>
 
     </div>
 
@@ -181,7 +204,7 @@
 
       <h2>Existing services</h2>
 
-      <table>
+      <div class="table-wrap"><table>
 
         <thead>
           <tr>
@@ -196,6 +219,7 @@
         <tbody id="serviceRows"></tbody>
 
       </table>
+      </div>
 
     </div>
 
@@ -313,7 +337,7 @@
 
       <div id="staffAssignMsg"></div>
 
-      <table>
+      <div class="table-wrap"><table>
 
         <thead>
           <tr>
@@ -327,6 +351,7 @@
         <tbody id="staffRows"></tbody>
 
       </table>
+      </div>
 
     </div>
 
@@ -347,7 +372,7 @@
 
       <div id="reminderMsg"></div>
 
-      <table class="spaced-table">
+      <div class="table-wrap"><table class="spaced-table">
 
         <thead>
           <tr>
@@ -363,6 +388,7 @@
         <tbody id="apptRows"></tbody>
 
       </table>
+      </div>
 
     </div>
 
@@ -382,7 +408,7 @@
         id="paymentSummaryCards"
       ></div>
 
-      <table class="spaced-table">
+      <div class="table-wrap"><table class="spaced-table">
 
         <thead>
           <tr>
@@ -400,9 +426,19 @@
         <tbody id="paymentRows"></tbody>
 
       </table>
+      </div>
 
     </div>
 
+  </div>
+
+
+  <!-- ================= REVIEWS ================= -->
+  <div id="tab-reviews" class="tab" style="display:none">
+    <div class="card">
+      <div class="section-heading"><div><p class="page-eyebrow">Guest feedback</p><h2>All reviews</h2></div></div>
+      <div id="adminReviews"></div>
+    </div>
   </div>
 
 
@@ -494,8 +530,9 @@
 
   </div>
 
+    </div>
+  </div>
 </main>
-
 
 <script src="../js/api.js"></script>
 

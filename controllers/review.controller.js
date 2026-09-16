@@ -10,6 +10,7 @@ async function createReview(req, res) {
   if (!appointment) throw new AppError(404, 'Appointment not found');
   if (appointment.customerId !== req.user.id) throw new AppError(403, 'You can only review your own appointments');
   if (appointment.status !== 'completed') throw new AppError(400, 'You can only review a completed appointment');
+  if (appointment.paymentStatus !== 'paid') throw new AppError(400, 'Payment is required before you can leave feedback');
 
   const existing = await Review.findOne({ where: { appointmentId } });
   if (existing) throw new AppError(409, 'This appointment already has a review');

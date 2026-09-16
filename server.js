@@ -22,9 +22,26 @@ const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
-app.use(morgan('dev'));
-app.use(express.json());
+const configuredOrigin = process.env.CLIENT_URL?.trim();
+app.use(cors({
+  origin: configuredOrigin || false,
+  credentials: false,
+}));
+
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(express.json({ limit: '100kb' }));
 
 // Frontend — plain HTML/CSS/JS, 3 role-based pages
 app.use(express.static('public'));
@@ -59,37 +76,14 @@ async function start() {
     await sequelize.authenticate();
     console.log('Database connection established.');
 
-    await sequelize.sync({ alter: true });
-
-    // The old unique index on (staffId, date, startTime)
-    // incorrectly blocks cancelled appointments from being
-    // rebooked. Keep a separate staffId index for the FK,
-    // then remove the old unique index.
-    const queryInterface = sequelize.getQueryInterface();
-
-    try {
-      await queryInterface.addIndex('appointments', ['staffId'], {
-        name: 'idx_appointments_staff_id',
-      });
-
-      console.log('Staff index created.');
-    } catch (err) {
-      // Index may already exist.
+    if (process.env.DB_SYNC === 'true') {
+      await sequelize.sync({ alter: false });
+      console.log('Database schema sync completed.');
+    } else {
+      console.log('Database schema sync skipped (DB_SYNC is not true).');
     }
 
-    try {
-      await queryInterface.removeIndex(
-        'appointments',
-        'appointments_staff_id_date_start_time'
-      );
 
-      console.log('Old appointment unique index removed.');
-    } catch (err) {
-      // Old index may already be removed.
-    }
-
-    console.log('Appointment indexes updated.');
-    console.log('Models synced.');
 
     if (
       process.env.INITIAL_ADMIN_EMAIL &&

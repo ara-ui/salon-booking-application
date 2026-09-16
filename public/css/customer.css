@@ -1,61 +1,88 @@
-.service-card {
-  margin-bottom: 0; 
-  display: flex;
-  flex-direction: column;
-  height: 100%; 
+.customer-hero {
+  background: linear-gradient(135deg, #3b2a31 0%, #6d483c 100%);
+  color: #fff;
+  border: 0;
+  box-shadow: var(--shadow-md);
+  padding: clamp(22px, 4vw, 34px);
 }
-.service-card__name { font-size: 15px; }
-.service-card__desc {
-  font-size: 13px;
-  color: #666;
-  flex-grow: 1; 
-}
-.service-card__meta { font-size: 13px; }
-.service-card__book {
-  margin-top: auto; 
-}
+.customer-hero h2 { color: #fff; font: 700 clamp(27px, 4vw, 38px)/1.1 Georgia, serif; margin-bottom: 8px; }
+.customer-hero p { color: rgba(255,255,255,.78); margin: 0 0 18px; }
+.customer-hero button { background: #fff; color: var(--primary-dark); margin-top: 0; }
+.customer-hero button:hover { background: #f7f0ec; }
 
+.service-card { margin: 0; display: flex; flex-direction: column; min-height: 235px; padding: 20px; }
+.service-card__eyebrow { color: var(--accent); text-transform: uppercase; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.service-card__name { font: 700 21px/1.2 Georgia, serif; margin: 8px 0 8px; }
+.service-card__desc { color: var(--muted); font-size: 13px; line-height: 1.55; flex-grow: 1; margin: 0 0 16px; }
+.service-card__meta { color: var(--ink); font-size: 13px; font-weight: 700; margin: 0; }
+.service-card__book { width: 100%; margin-top: 14px; }
 
-.slots-area {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
+.booking-panel { border: 1px solid #dbc9c0; box-shadow: var(--shadow-md); }
+.booking-step { margin-bottom: 20px; }
+.booking-step:last-child { margin-bottom: 0; }
+.step-label { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--primary); margin-bottom: 10px; }
+.step-number { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); }
+.booking-service-summary { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 11px; padding: 13px 14px; }
+.booking-service-summary strong { display: block; font-size: 16px; }
+.booking-service-summary span { color: var(--muted); font-size: 12px; }
+
+.slots-area { display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 9px; margin-top: 12px; }
 .slot-btn {
-  display: inline-block;
-  padding: 8px 14px;
-  border: 1px solid #7a4d3a;
-  border-radius: 6px;
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid #cdb8ae;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 650;
   background: #fff;
-  color: #7a4d3a;
+  color: var(--primary);
+  margin: 0;
 }
-.slot-btn:hover { background: #f5efec; }
-.slot-btn.selected {
-  background: #7a4d3a;
-  color: #fff;
-  box-shadow: 0 0 0 2px #d8c4ba; 
-}
-.book-confirm-btn {
-  display: block;
-  margin-top: 14px;
-}
-.appt-actions {
-  display: flex;
-  flex-wrap: wrap; 
-  gap: 10px;
-  margin-top: 14px;
-}
-.appt-actions button {
-  margin-top: 0; 
-}
-.appt-back-row {
-  margin-top: 10px;
+.slot-btn:hover { background: var(--primary-soft); box-shadow: none; }
+.slot-btn.selected { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px #ead8cf; }
+.book-confirm-btn { width: 100%; margin-top: 18px; }
+
+.appointment-list { display: grid; gap: 12px; }
+.appointment-card { border: 1px solid var(--line); border-radius: 13px; padding: 16px; background: #fff; }
+.appointment-card__top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.appointment-card__service { font: 700 18px/1.2 Georgia, serif; margin: 0 0 5px; }
+.appointment-card__when { color: var(--muted); font-size: 13px; }
+.appointment-card__meta { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 15px 0 4px; }
+.appointment-meta-item { background: var(--surface-soft); border-radius: 9px; padding: 9px; }
+.appointment-meta-item small { display: block; color: var(--soft); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.appointment-meta-item strong { display: block; margin-top: 2px; font-size: 12px; }
+.appointment-card__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.appointment-card__actions button { margin-top: 10px; }
+
+.detail-card { border: 1px solid #dbc9c0; box-shadow: var(--shadow-md); }
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin: 16px 0; }
+.detail-item { padding: 12px; border-radius: 10px; background: var(--surface-soft); }
+.detail-item small { display: block; color: var(--soft); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.detail-item strong { display: block; margin-top: 3px; }
+.appt-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.appt-actions button { margin-top: 0; }
+.appt-back-row { margin-top: 10px; }
+
+.payment-list { display: grid; gap: 10px; }
+.payment-card { display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; }
+.payment-card__title { font-weight: 700; font-size: 14px; }
+.payment-card__meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.payment-card__amount { font-weight: 800; white-space: nowrap; }
+
+.preference-summary { display: grid; gap: 9px; }
+.preference-row { display: flex; justify-content: space-between; gap: 18px; padding-bottom: 9px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.preference-row:last-child { border-bottom: 0; }
+.preference-row span:first-child { color: var(--muted); }
+
+.rating-picker { display: flex; gap: 5px; margin: 8px 0 10px; }
+.rating-star { border: 0; background: transparent; color: #c6bbb7; font-size: 28px; padding: 0; min-height: 38px; width: 38px; margin: 0; box-shadow: none; }
+.rating-star:hover { color: #b8795d; background: transparent; box-shadow: none; }
+.rating-star.selected { color: #b8795d; }
+
+@media (max-width: 600px) {
+  .appointment-card__meta, .detail-grid { grid-template-columns: 1fr; }
+  .appointment-card__top { flex-direction: column; }
+  .payment-card { align-items: flex-start; }
 }
 
-.table-action-btn {
-  margin-top: 0;
-}

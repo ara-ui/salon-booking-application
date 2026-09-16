@@ -21,6 +21,10 @@ async function authenticate(req, res, next) {
       return res.status(401).json({ message: 'User not found or deactivated' });
     }
 
+    if (user.passwordChangedAt && decoded.iat && decoded.iat * 1000 < new Date(user.passwordChangedAt).getTime()) {
+      return res.status(401).json({ message: 'Session expired after a password change. Please log in again.' });
+    }
+
     req.user = { id: user.id, role: user.role };
 
     if (user.role === 'staff') {

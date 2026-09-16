@@ -4,7 +4,7 @@ let _servicesCache = [];
 
 async function loadServices() {
   try {
-    _servicesCache = await api('/services', { auth: false });
+    _servicesCache = await api('/services/admin/all');
 
     document.getElementById('serviceRows').innerHTML =
       _servicesCache.map(s => `
@@ -25,7 +25,7 @@ async function loadServices() {
             <button
               class="danger"
               style="margin-top:0"
-              onclick="deleteServiceConfirm(${s.id}, '${escapeHtml(s.name)}')"
+              onclick="deleteServiceConfirm(${s.id})"
             >
               Delete
             </button>
@@ -135,8 +135,10 @@ async function saveServiceEdit() {
 }
 
 
-async function deleteServiceConfirm(id, name) {
-  if (!confirm(`Delete "${name}"? This removes it from the customer-facing list.`)) {
+async function deleteServiceConfirm(id) {
+  const service = _servicesCache.find(s => Number(s.id) === Number(id));
+  const name = service?.name || 'this service';
+  if (!confirm(`Deactivate "${name}"? This removes it from the customer-facing list.`)) {
     return;
   }
 

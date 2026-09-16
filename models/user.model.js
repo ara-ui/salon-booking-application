@@ -58,6 +58,13 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
     },
+    // Updated whenever a password is reset so previously issued JWTs can be
+    // rejected by the authentication middleware. Null keeps existing sessions
+    // valid until the first password reset after this field is introduced.
+    passwordChangedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   }, {
     tableName: 'users',
     timestamps: true,

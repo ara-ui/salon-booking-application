@@ -28,7 +28,7 @@ async function loadUsers() {
               id="userBtn-${u.id}"
               class="${u.isActive ? 'deactivate-btn' : 'activate-btn'}"
               style="margin-top:0"
-              onclick="toggleUserActive(${u.id}, ${!u.isActive}, '${escapeHtml(u.name)}')"
+              data-user-name="${escapeHtml(u.name)}" onclick="toggleUserActive(${u.id}, ${!u.isActive})"
             >
               ${u.isActive ? 'Deactivate' : 'Activate'}
             </button>
@@ -49,14 +49,15 @@ async function loadUsers() {
 }
 
 
-async function toggleUserActive(id, nextIsActive, name) {
+async function toggleUserActive(id, nextIsActive) {
   const verb = nextIsActive ? 'activate' : 'deactivate';
+  const btn = document.getElementById(`userBtn-${id}`);
+  const name = btn?.dataset.userName || 'this user';
 
   if (!confirm(`Are you sure you want to ${verb} ${name}'s account?`)) {
     return;
   }
 
-  const btn = document.getElementById(`userBtn-${id}`);
   const msg = document.getElementById('userMsg');
 
   if (btn) {

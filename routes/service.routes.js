@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
-  listServices, getService, createService, updateService, deleteService,
+  listServices, listAllServices, getService, createService, updateService, deleteService,
   getSalonSettings, updateSalonSettings,
 } = require('../controllers/service.controller');
 const { authenticate, requireRole } = require('../middleware/auth.middleware');
@@ -40,6 +40,8 @@ router.get('/', asyncHandler(listServices));
  *       200: { description: The service }
  *       404: { description: Not found }
  */
+router.get('/admin/all', authenticate, requireRole('admin'), asyncHandler(listAllServices));
+
 router.get('/:id', asyncHandler(getService));
 
 /**

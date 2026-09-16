@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { listStaff, getStaff, createStaff, updateStaff, assignServices } = require('../controllers/staff.controller');
+const { listStaff, listAllStaff, getStaff, createStaff, updateStaff, assignServices } = require('../controllers/staff.controller');
 const { authenticate, requireRole } = require('../middleware/auth.middleware');
 const { asyncHandler } = require('../middleware/error.middleware');
 
@@ -37,6 +37,8 @@ router.get('/', asyncHandler(listStaff));
  *       200: { description: The staff member }
  *       404: { description: Not found }
  */
+router.get('/admin/all', authenticate, requireRole('admin'), asyncHandler(listAllStaff));
+
 router.get('/:id', asyncHandler(getStaff));
 
 /**

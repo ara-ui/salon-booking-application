@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Glow Salon — Staff</title>
 <link rel="stylesheet" href="../css/style.css" />
 <link rel="stylesheet" href="../css/staff.css" />
@@ -9,25 +10,44 @@
 <body>
 <header>
   <h1>Glow Salon — Staff</h1>
-  <nav><span id="welcome"></span><span class="logout" onclick="logout()">Logout</span></nav>
+  <nav><span id="welcome"></span>
+    <div class="notification-center" id="notificationCenter">
+      <button class="notification-btn" id="notificationBtn" type="button" aria-label="Notifications" aria-expanded="false">
+        <span aria-hidden="true">🔔</span>
+        <span class="notification-count" id="notificationCount" hidden>0</span>
+      </button>
+      <div class="notification-panel" id="notificationPanel" hidden>
+        <div class="notification-panel__header"><strong>Notifications</strong><button type="button" class="notification-clear" id="clearNotificationsBtn">Clear</button></div>
+        <div id="notificationList" class="notification-list"></div>
+      </div>
+    </div>
+    <button class="header-logout" id="logoutBtn" type="button">Logout</button></nav>
 </header>
 <main>
+  <section class="page-intro">
+    <p class="page-eyebrow">Staff workspace</p>
+    <h2>Today at the salon</h2>
+    <p>Keep track of your schedule and give every guest a great experience.</p>
+  </section>
 
-  <div class="card">
-    <h2>My upcoming appointments</h2>
-    <table>
-      <thead><tr><th>Customer</th><th>Service</th><th>Date</th><th>Time</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody id="apptRows"></tbody>
-    </table>
-  </div>
+  <section class="card staff-hero">
+    <div class="staff-stat-grid">
+      <div class="staff-stat"><small>Today's appointments</small><strong id="todayCount">—</strong></div>
+      <div class="staff-stat"><small>Upcoming</small><strong id="upcomingCount">—</strong></div>
+      <div class="staff-stat"><small>Completed today</small><strong id="completedCount">—</strong></div>
+    </div>
+  </section>
 
-  <div class="card">
-    <h2>Reviews about me</h2>
+  <section class="card">
+    <div class="section-heading"><div><p class="page-eyebrow">Your schedule</p><h2>Appointments</h2></div></div>
+    <div id="apptRows" class="staff-schedule"></div>
+  </section>
+
+  <section class="card">
+    <div class="section-heading"><div><p class="page-eyebrow">Guest feedback</p><h2>Reviews about me</h2></div></div>
     <div id="reviews"></div>
-  </div>
-
+  </section>
 </main>
-
 <script src="../js/api.js"></script>
 <script src="../js/staff.js"></script>
 </body>

@@ -1,23 +1,44 @@
 const { Service, SalonSettings } = require('../models');
 const { AppError } = require('../middleware/error.middleware');
+const {
+  cleanString,
+  validateServiceInput,
+  validateHoursObject,
+  validateSpecialDates,
+} = require('../utils/validation');
 
 async function listServices(req, res) {
-  const services = await Service.findAll({ where: { isActive: true } });
+  const services = await Service.findAll({
+    where: { isActive: true },
+    order: [['name', 'ASC']],
+  });
+  res.json(services);
+}
+
+async function listAllServices(req, res) {
+  const services = await Service.findAll({ order: [['name', 'ASC']] });
   res.json(services);
 }
 
 async function getService(req, res) {
   const service = await Service.findByPk(req.params.id);
-  if (!service) throw new AppError(404, 'Service not found');
+  if (!service || (!service.isActive && req.user?.role !== 'admin')) {
+    throw new AppError(404, 'Service not found');
+  }
   res.json(service);
 }
 
 async function createService(req, res) {
   const { name, description, durationMinutes, price } = req.body;
-  if (!name || !durationMinutes || price === undefined) {
-    throw new AppError(400, 'name, durationMinutes and price are required');
-  }
-  const service = await Service.create({ name, description, durationMinutes, price });
+  const validationError = validateServiceInput({ name, description, durationMinutes, price });
+  if (validationError) throw new AppError(400, validationError);
+
+  const service = await Service.create({
+    name: cleanString(name, 120),
+    description: description === undefined ? null : cleanString(description, 2000),
+    durationMinutes: Number(durationMinutes),
+    price: Number(price),
+  });
   res.status(201).json(service);
 }
 
@@ -26,11 +47,20 @@ async function updateService(req, res) {
   if (!service) throw new AppError(404, 'Service not found');
 
   const { name, description, durationMinutes, price, isActive } = req.body;
-  if (name !== undefined) service.name = name;
-  if (description !== undefined) service.description = description;
-  if (durationMinutes !== undefined) service.durationMinutes = durationMinutes;
-  if (price !== undefined) service.price = price;
-  if (isActive !== undefined) service.isActive = isActive;
+  const validationError = validateServiceInput(
+    { name, description, durationMinutes, price },
+    { partial: true }
+  );
+  if (validationError) throw new AppError(400, validationError);
+
+  if (name !== undefined) service.name = cleanString(name, 120);
+  if (description !== undefined) service.description = cleanString(description, 2000);
+  if (durationMinutes !== undefined) service.durationMinutes = Number(durationMinutes);
+  if (price !== undefined) service.price = Number(price);
+  if (isActive !== undefined) {
+    if (typeof isActive !== 'boolean') throw new AppError(400, 'isActive must be true or false');
+    service.isActive = isActive;
+  }
   await service.save();
 
   res.json(service);
@@ -39,34 +69,33 @@ async function updateService(req, res) {
 async function deleteService(req, res) {
   const service = await Service.findByPk(req.params.id);
   if (!service) throw new AppError(404, 'Service not found');
-  // Soft delete — keeps historical appointments/reviews referencing it intact.
   service.isActive = false;
   await service.save();
   res.json({ message: 'Service deactivated' });
 }
 
-// ---- Salon settings (single row, id=1) ----
-
 async function getSalonSettings(req, res) {
   const settings = await SalonSettings.findByPk(1);
   if (!settings) throw new AppError(404, 'Salon settings have not been configured yet');
-  // Normalize null -> [] so the frontend never has to special-case a missing value.
   res.json({ ...settings.toJSON(), specialDates: settings.specialDates || [] });
 }
 
 async function updateSalonSettings(req, res) {
   const { workingHours, specialDates } = req.body;
   if (!workingHours) throw new AppError(400, 'workingHours is required');
-  if (specialDates !== undefined && !Array.isArray(specialDates)) {
-    throw new AppError(400, 'specialDates must be an array');
-  }
+
+  const hoursError = validateHoursObject(workingHours);
+  if (hoursError) throw new AppError(400, hoursError);
+
+  const specialDatesError = validateSpecialDates(specialDates);
+  if (specialDatesError) throw new AppError(400, specialDatesError);
 
   const [settings] = await SalonSettings.findOrCreate({
     where: { id: 1 },
     defaults: { workingHours, specialDates: specialDates || [] },
   });
   settings.workingHours = workingHours;
-  if (specialDates !== undefined) settings.specialDates = specialDates; // leave untouched if omitted
+  if (specialDates !== undefined) settings.specialDates = specialDates;
   await settings.save();
 
   res.json({ ...settings.toJSON(), specialDates: settings.specialDates || [] });
@@ -74,6 +103,7 @@ async function updateSalonSettings(req, res) {
 
 module.exports = {
   listServices,
+  listAllServices,
   getService,
   createService,
   updateService,

@@ -5,26 +5,34 @@ const { signToken } = require('../utils/jwt');
 const { AppError } = require('../middleware/error.middleware');
 const { generateResetToken, hashResetToken } = require('../utils/resetToken');
 const { sendPasswordResetEmail } = require('../utils/email');
+const { cleanString, isValidEmail } = require('../utils/validation');
 
 async function register(req, res) {
-  const { name, email, password, phone, role } = req.body;
+  const { name, email, password, phone } = req.body;
+  const cleanName = cleanString(name, 120);
+  const normalizedEmail = cleanString(email, 254).toLowerCase();
 
-  if (!name || !email || !password) {
+  if (!cleanName || !normalizedEmail || !password) {
     throw new AppError(400, 'name, email and password are required');
+  }
+  if (cleanName.length < 2) throw new AppError(400, 'Name must be at least 2 characters');
+  if (!isValidEmail(normalizedEmail)) throw new AppError(400, 'Please provide a valid email address');
+  if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
+    throw new AppError(400, 'Password must be between 6 and 128 characters');
   }
 
   // Only allow self-registration as a customer. Staff and admin accounts are
   // created by an admin via POST /staff and PUT /users/:id — never through
   // this public endpoint, otherwise anyone could register as admin.
-  const existing = await User.findOne({ where: { email } });
+  const existing = await User.findOne({ where: { email: normalizedEmail } });
   if (existing) throw new AppError(409, 'An account with this email already exists');
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await User.create({
-    name,
-    email,
+    name: cleanName,
+    email: normalizedEmail,
     passwordHash,
-    phone,
+    phone: cleanString(phone, 40) || null,
     role: 'customer',
   });
 
@@ -36,8 +44,10 @@ async function register(req, res) {
 }
 
 async function login(req, res) {
-  const { email, password } = req.body;
+  const email = cleanString(req.body.email, 254).toLowerCase();
+  const { password } = req.body;
   if (!email || !password) throw new AppError(400, 'email and password are required');
+  if (!isValidEmail(email)) throw new AppError(400, 'Please provide a valid email address');
 
   const user = await User.findOne({ where: { email } });
   if (!user) throw new AppError(401, 'Invalid email or password');
@@ -55,8 +65,9 @@ async function login(req, res) {
 }
 
 async function forgotPassword(req, res) {
-  const { email } = req.body;
+  const email = cleanString(req.body.email, 254).toLowerCase();
   if (!email) throw new AppError(400, 'email is required');
+  if (!isValidEmail(email)) throw new AppError(400, 'Please provide a valid email address');
 
   // Same response whether or not the account exists, and whether or not it's
   // active — otherwise this endpoint could be used to check which emails are
@@ -86,8 +97,8 @@ async function resetPassword(req, res) {
   if (!token || !password) {
     throw new AppError(400, 'token and password are required');
   }
-  if (password.length < 6) {
-    throw new AppError(400, 'Password must be at least 6 characters');
+  if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
+    throw new AppError(400, 'Password must be between 6 and 128 characters');
   }
 
   const user = await User.findOne({
@@ -102,6 +113,7 @@ async function resetPassword(req, res) {
   }
 
   user.passwordHash = await bcrypt.hash(password, 10);
+  user.passwordChangedAt = new Date();
   // Single-use: clear the token immediately so the same link can't be replayed.
   user.resetPasswordTokenHash = null;
   user.resetPasswordExpires = null;
