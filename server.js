@@ -19,6 +19,7 @@ const appointmentRoutes = require('./routes/appointment.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const reviewRoutes = require('./routes/review.routes');
 const adminRoutes = require('./routes/admin.routes');
+const cashfreeWebhookRoutes = require('./routes/cashfreeWebhook.routes');
 
 const app = express();
 
@@ -41,6 +42,15 @@ app.use((req, res, next) => {
 });
 
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// Cashfree webhook must receive the exact raw request body for HMAC
+// signature verification. This route must stay before express.json().
+app.use(
+  '/purchase/webhook',
+  express.raw({ type: 'application/json', limit: '100kb' }),
+  cashfreeWebhookRoutes
+);
+
 app.use(express.json({ limit: '100kb' }));
 
 // Frontend — plain HTML/CSS/JS, 3 role-based pages

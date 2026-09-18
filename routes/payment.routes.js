@@ -68,8 +68,9 @@ router.post('/checkout', paymentLimiter, authenticate, requireRole('customer'), 
  *             properties:
  *               orderId: { type: string }
  *     responses:
- *       200: { description: Verified — payment and appointment status returned }
- *       400: { description: Missing orderId, or payment could not be verified as successful }
+ *       200: { description: Payment verified successfully }
+ *       202: { description: Cashfree has not exposed a successful payment yet; retry is safe }
+ *       400: { description: Missing orderId, expired order, amount mismatch, or completion gate failure }
  *       403: { description: Not your payment }
  *       404: { description: No payment found for this order }
  */

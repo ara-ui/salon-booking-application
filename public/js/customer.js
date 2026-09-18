@@ -367,75 +367,183 @@ async function generateCompletionCode(id, button = null) {
     }
   }
 }
-
 async function payNow(id) {
+  const MAX_VERIFY_ATTEMPTS = 8;
+  const VERIFY_DELAY_MS = 2000;
+
   try {
-    // The Pay now button on the appointment card lives outside the detail panel.
-    // Open the detail panel first so there is a visible message area for payment
-    // progress/errors. This also prevents a missing #detailMsg from making the
-    // button appear to do nothing.
     if (!$('detailMsg')) {
       await showDetail(id);
     }
 
     const msg = $('detailMsg');
+
     if (!msg) {
-      throw new Error('Could not open the appointment details. Please try again.');
+      throw new Error(
+        'Could not open the appointment details. Please try again.'
+      );
     }
 
-    msg.innerHTML = '<p class="notice">Preparing secure payment…</p>'; 
+    msg.innerHTML =
+      '<p class="notice">Preparing secure payment…</p>';
 
     if (typeof window.Cashfree !== 'function') {
-      throw new Error('Cashfree checkout could not be loaded. Refresh the page and try again.');
+      throw new Error(
+        'Cashfree checkout could not be loaded. Refresh the page and try again.'
+      );
     }
 
     const order = await api('/payments/checkout', {
       method: 'POST',
-      body: { appointmentId: id },
+      body: {
+        appointmentId: id,
+      },
     });
 
-    if (!order?.orderId || !order?.paymentSessionId) {
-      throw new Error('Cashfree did not return a valid payment session. Please try again.');
-    }
-
-    const cashfree = window.Cashfree({ mode: 'sandbox' });
-    const result = await cashfree.checkout({
-      paymentSessionId: order.paymentSessionId,
-      redirectTarget: '_modal',
-    });
-
-    if (result?.error) {
-      setMessage(
-        'detailMsg',
-        result.error.message || 'Payment was not completed. Your appointment is still safe.',
-        'error'
-      );
-      return;
-    }
-
-    // Cashfree checkout returning control to the page does not itself prove
-    // that money was received. The backend independently verifies the order.
-    const verified = await api('/payments/verify', {
-      method: 'POST',
-      body: { orderId: order.orderId },
-    });
-
-    if (verified.appointmentPaymentStatus === 'paid') {
-      setMessage('detailMsg', 'Payment successful — your appointment is confirmed.', 'success');
-    } else {
-      setMessage(
-        'detailMsg',
-        'Payment could not be verified. Please contact the salon if you were charged.',
-        'error'
+    if (
+      !order?.orderId ||
+      !order?.paymentSessionId
+    ) {
+      throw new Error(
+        'Cashfree did not return a valid payment session. Please try again.'
       );
     }
 
-    await Promise.all([showDetail(id, false), loadAppointments(), loadPaymentHistory()]);
+    const cashfree =
+      window.Cashfree({
+        mode: 'sandbox',
+      });
+
+    msg.innerHTML =
+      '<p class="notice">Opening secure payment…</p>';
+
+    let checkoutResult = null;
+
+    try {
+      checkoutResult =
+        await cashfree.checkout({
+          paymentSessionId:
+            order.paymentSessionId,
+          redirectTarget: '_modal',
+        });
+    } catch (checkoutError) {
+      /*
+       * A checkout-side error does NOT automatically mean
+       * that the payment failed.
+       *
+       * The payment may already have reached Cashfree.
+       * We therefore continue to server-side verification.
+       */
+      console.warn(
+        'Cashfree checkout returned an error:',
+        checkoutError
+      );
+    }
+
+    if (checkoutResult?.error) {
+      console.warn(
+        'Cashfree checkout error:',
+        checkoutResult.error
+      );
+    }
+
+    msg.innerHTML =
+      '<p class="notice">Confirming your payment…</p>';
+
+    let lastStatus = 'pending';
+
+    for (
+      let attempt = 1;
+      attempt <= MAX_VERIFY_ATTEMPTS;
+      attempt++
+    ) {
+      try {
+        const verified =
+          await api('/payments/verify', {
+            method: 'POST',
+            body: {
+              orderId: order.orderId,
+            },
+          });
+
+        lastStatus =
+          verified?.status || 'pending';
+
+        if (
+          verified?.appointmentPaymentStatus ===
+          'paid'
+        ) {
+          setMessage(
+            'detailMsg',
+            'Payment successful — your appointment is confirmed.',
+            'success'
+          );
+
+          await Promise.all([
+            showDetail(id, false),
+            loadAppointments(),
+            loadPaymentHistory(),
+          ]);
+
+          return;
+        }
+      } catch (err) {
+        /*
+         * Only transient verification failures should
+         * continue into the retry cycle.
+         *
+         * Real errors such as expired sessions,
+         * unauthorized payments, or invalid orders
+         * should be shown immediately.
+         */
+        const message =
+          String(err?.message || '').toLowerCase();
+
+        const transient =
+          message.includes('not been completed') ||
+          message.includes('pending') ||
+          message.includes('could not be verified');
+
+        if (!transient) {
+          throw err;
+        }
+
+        console.warn(
+          `Payment verification attempt ${attempt} failed temporarily:`,
+          err.message
+        );
+      }
+
+      if (attempt < MAX_VERIFY_ATTEMPTS) {
+        msg.innerHTML =
+          `<p class="notice">Confirming payment… (${attempt}/${MAX_VERIFY_ATTEMPTS})</p>`;
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, VERIFY_DELAY_MS)
+        );
+      }
+    }
+
+    setMessage(
+      'detailMsg',
+      'Payment is still being confirmed. If your bank/Cashfree shows the payment as successful, please wait a moment and check your appointment status again. You will not be charged twice.',
+      'notice'
+    );
+
+    await Promise.all([
+      showDetail(id, false),
+      loadAppointments(),
+      loadPaymentHistory(),
+    ]);
   } catch (err) {
-    setMessage('detailMsg', err.message || 'Payment could not be started. Please try again.', 'error');
+    setMessage(
+      'detailMsg',
+      err.message ||
+        'Payment could not be completed. Please try again.',
+      'error'
+    );
   }
 }
-
 async function loadPaymentHistory() {
   try {
     const payments = await api('/payments/mine');

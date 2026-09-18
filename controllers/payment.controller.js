@@ -1,7 +1,15 @@
 const { Appointment, Service, User, Payment } = require('../models');
+
 const { AppError } = require('../middleware/error.middleware');
+
 const { getCashfree } = require('../utils/cashfreeClient');
+
 const { maybeGenerateInvoice } = require('../utils/invoiceService');
+
+const {
+  settleSuccessfulPayment,
+} = require('../services/paymentSettlement.service');
+
 
 async function getSuccessfulPayment(appointmentId) {
   return Payment.findOne({
@@ -13,8 +21,10 @@ async function getSuccessfulPayment(appointmentId) {
   });
 }
 
+
 async function reconcileAppointmentPaymentStatus(appointment) {
   const successfulPayment = await getSuccessfulPayment(appointment.id);
+
   const expectedStatus = successfulPayment ? 'paid' : 'unpaid';
 
   if (appointment.paymentStatus !== expectedStatus) {
@@ -24,6 +34,11 @@ async function reconcileAppointmentPaymentStatus(appointment) {
 
   return successfulPayment;
 }
+
+
+/* =========================================================
+   CREATE CASHFREE ORDER
+   ========================================================= */
 
 async function createCashfreeOrder(req, res) {
   const { appointmentId } = req.body;
@@ -44,6 +59,9 @@ async function createCashfreeOrder(req, res) {
     throw new AppError(403, 'Not your appointment');
   }
 
+  /*
+   * Payment is allowed only after the staff completion step.
+   */
   if (appointment.status !== 'completed') {
     throw new AppError(
       400,
@@ -51,19 +69,31 @@ async function createCashfreeOrder(req, res) {
     );
   }
 
-  // Payment is determined from the server-side ledger, never from a stale
-  // Appointment.paymentStatus value.
-  const successfulPayment = await reconcileAppointmentPaymentStatus(appointment);
+  /*
+   * Reconcile the appointment payment status from the actual
+   * successful Payment record.
+   *
+   * Completion code verification must NEVER make an appointment
+   * paid. Only a successful Payment record can do that.
+   */
+  const successfulPayment =
+    await reconcileAppointmentPaymentStatus(appointment);
 
   if (successfulPayment) {
     await maybeGenerateInvoice(appointment.id);
-    throw new AppError(400, 'This appointment is already paid');
+
+    throw new AppError(
+      400,
+      'This appointment is already paid'
+    );
   }
 
   const cashfree = getCashfree();
 
-  // Reuse an existing pending order only after Cashfree confirms it is still
-  // ACTIVE. Stale provider orders must never be sent back to the browser.
+  /*
+   * Reuse an existing pending Cashfree order only when the
+   * provider confirms that the order is still ACTIVE.
+   */
   const existingPendingPayment = await Payment.findOne({
     where: {
       appointmentId: appointment.id,
@@ -74,55 +104,85 @@ async function createCashfreeOrder(req, res) {
 
   if (existingPendingPayment?.providerOrderId) {
     try {
-      const existingOrderResult = await cashfree.PGFetchOrder(
-        existingPendingPayment.providerOrderId
-      );
-      const existingOrder = existingOrderResult.data || {};
+      const existingOrderResult =
+        await cashfree.PGFetchOrder(
+          existingPendingPayment.providerOrderId
+        );
+
+      const existingOrder =
+        existingOrderResult.data || {};
+
       const orderStatus = String(
         existingOrder.order_status || ''
       ).toUpperCase();
 
+      /*
+       * Cashfree says the order is already paid.
+       * Reconcile it into our local payment ledger.
+       */
       if (orderStatus === 'PAID') {
-        const paymentResult = await cashfree.PGOrderFetchPayments(
-          existingPendingPayment.providerOrderId
-        );
+        const paymentResult =
+          await cashfree.PGOrderFetchPayments(
+            existingPendingPayment.providerOrderId
+          );
 
-        const successfulProviderPayment = (paymentResult.data || []).find(
-          (item) => item.payment_status === 'SUCCESS'
-        );
+        const successfulProviderPayment =
+          (paymentResult.data || []).find(
+            (item) =>
+              String(item.payment_status || '').toUpperCase() ===
+              'SUCCESS'
+          );
 
         if (successfulProviderPayment) {
-          existingPendingPayment.status = 'succeeded';
-          existingPendingPayment.providerPaymentId =
-            successfulProviderPayment.cf_payment_id;
-          await existingPendingPayment.save();
+          await settleSuccessfulPayment(
+            existingPendingPayment,
+            successfulProviderPayment.cf_payment_id
+          );
 
-          appointment.paymentStatus = 'paid';
-          await appointment.save();
-          await maybeGenerateInvoice(appointment.id);
-
-          throw new AppError(400, 'This appointment is already paid');
+          throw new AppError(
+            400,
+            'This appointment is already paid'
+          );
         }
       }
 
+      /*
+       * Only reuse an ACTIVE order that has a valid
+       * payment session.
+       */
       if (
         orderStatus === 'ACTIVE' &&
         existingOrder.payment_session_id
       ) {
         return res.json({
           orderId: existingOrder.order_id,
-          paymentSessionId: existingOrder.payment_session_id,
+          paymentSessionId:
+            existingOrder.payment_session_id,
           paymentId: existingPendingPayment.id,
         });
       }
 
+      /*
+       * Existing order is no longer usable.
+       */
       existingPendingPayment.status = 'failed';
       await existingPendingPayment.save();
+
     } catch (err) {
-      if (err instanceof AppError) throw err;
+      if (err instanceof AppError) {
+        throw err;
+      }
 
-      const status = Number(err?.response?.status || err?.status || 0);
+      const status = Number(
+        err?.response?.status ||
+        err?.status ||
+        0
+      );
 
+      /*
+       * Cashfree no longer knows this order.
+       * Mark the local attempt failed and create a new order.
+       */
       if (status === 404) {
         existingPendingPayment.status = 'failed';
         await existingPendingPayment.save();
@@ -131,16 +191,27 @@ async function createCashfreeOrder(req, res) {
           'Failed to check existing Cashfree payment order:',
           err
         );
+
         throw new AppError(
           503,
           'Unable to check the existing payment attempt. Please try again shortly.'
         );
       }
     }
+
   } else if (existingPendingPayment) {
+    /*
+     * A local pending payment without a Cashfree order
+     * cannot be reused.
+     */
     existingPendingPayment.status = 'failed';
     await existingPendingPayment.save();
   }
+
+
+  /* =========================================================
+     CUSTOMER
+     ========================================================= */
 
   const customer = await User.findByPk(req.user.id);
 
@@ -154,27 +225,63 @@ async function createCashfreeOrder(req, res) {
     status: 'pending',
   });
 
-  const cashfreeOrderId = `SALON_ORDER_${appointment.id}_${Date.now()}`;
+  const cashfreeOrderId =
+    `SALON_ORDER_${appointment.id}_${Date.now()}`;
+
   const expiryTime = new Date(
     Date.now() + 30 * 60 * 1000
   ).toISOString();
 
+
+  
+  const appUrl = (
+    process.env.APP_URL ||
+    process.env.CLIENT_URL ||
+    'http://localhost:3001'
+  ).replace(/\/$/, '');
+
+  const webhookUrl =
+    `${appUrl}/purchase/webhook/cashfree`;
+
+  const returnUrl =
+    `${appUrl}/html/customer.html`;
+
+
   try {
     const response = await cashfree.PGCreateOrder({
       order_id: cashfreeOrderId,
-      order_amount: Number(appointment.Service.price),
+
+      order_amount:
+        Number(appointment.Service.price),
+
       order_currency: 'INR',
+
       order_expiry_time: expiryTime,
+
       customer_details: {
         customer_id: String(customer.id),
+
         customer_email: customer.email,
-        customer_phone: customer.phone || '9999999999',
+
+        customer_phone:
+          customer.phone || '9999999999',
+
         customer_name: customer.name,
+      },
+
+     
+      order_meta: {
+        notify_url: webhookUrl,
+        return_url: returnUrl,
       },
     });
 
-    const createdOrder = response.data || {};
 
+    const createdOrder =
+      response.data || {};
+
+
+   
     if (
       !createdOrder.order_id ||
       !createdOrder.payment_session_id
@@ -188,19 +295,29 @@ async function createCashfreeOrder(req, res) {
       );
     }
 
-    payment.providerOrderId = createdOrder.order_id;
+
+    payment.providerOrderId =
+      createdOrder.order_id;
+
     await payment.save();
+
 
     return res.json({
       orderId: createdOrder.order_id,
-      paymentSessionId: createdOrder.payment_session_id,
+
+      paymentSessionId:
+        createdOrder.payment_session_id,
+
       paymentId: payment.id,
     });
+
   } catch (err) {
+   
     if (payment.status !== 'failed') {
       payment.status = 'failed';
       await payment.save();
     }
+
     throw err;
   }
 }
@@ -212,6 +329,8 @@ async function verifyCashfreePayment(req, res) {
     throw new AppError(400, 'orderId is required');
   }
 
+
+
   const payment = await Payment.findOne({
     where: {
       providerOrderId: orderId,
@@ -219,17 +338,26 @@ async function verifyCashfreePayment(req, res) {
   });
 
   if (!payment) {
-    throw new AppError(404, 'No payment found for this order');
+    throw new AppError(
+      404,
+      'No payment found for this order'
+    );
   }
+
 
   const appointment = await Appointment.findByPk(
     payment.appointmentId
   );
 
-  if (!appointment || appointment.customerId !== req.user.id) {
+  if (
+    !appointment ||
+    appointment.customerId !== req.user.id
+  ) {
     throw new AppError(403, 'Not your payment');
   }
 
+
+ 
   if (appointment.status !== 'completed') {
     throw new AppError(
       400,
@@ -237,10 +365,13 @@ async function verifyCashfreePayment(req, res) {
     );
   }
 
+
+ 
   if (payment.status === 'succeeded') {
-    appointment.paymentStatus = 'paid';
-    await appointment.save();
-    await maybeGenerateInvoice(appointment.id);
+    await settleSuccessfulPayment(
+      payment,
+      payment.providerPaymentId
+    );
 
     return res.json({
       status: 'succeeded',
@@ -248,13 +379,21 @@ async function verifyCashfreePayment(req, res) {
     });
   }
 
+
   const cashfree = getCashfree();
 
-  const orderResult = await cashfree.PGFetchOrder(orderId);
-  const order = orderResult.data || {};
 
+  const orderResult =
+    await cashfree.PGFetchOrder(orderId);
+
+  const order =
+    orderResult.data || {};
+
+
+ 
   if (
-    Number(order.order_amount) !== Number(payment.amount)
+    Number(order.order_amount) !==
+    Number(payment.amount)
   ) {
     throw new AppError(
       400,
@@ -262,7 +401,16 @@ async function verifyCashfreePayment(req, res) {
     );
   }
 
-  if (String(order.order_status || '').toUpperCase() === 'EXPIRED') {
+
+  const orderStatus = String(
+    order.order_status || ''
+  ).toUpperCase();
+
+
+  /*
+   * Expired Cashfree orders cannot become successful.
+   */
+  if (orderStatus === 'EXPIRED') {
     payment.status = 'failed';
     await payment.save();
 
@@ -272,72 +420,105 @@ async function verifyCashfreePayment(req, res) {
     );
   }
 
-  const result = await cashfree.PGOrderFetchPayments(orderId);
-  const successfulPayment = (result.data || []).find(
-    (item) => item.payment_status === 'SUCCESS'
-  );
+
+
+  const result =
+    await cashfree.PGOrderFetchPayments(orderId);
+
+
+  const successfulPayment =
+    (result.data || []).find(
+      (item) =>
+        String(item.payment_status || '').toUpperCase() ===
+        'SUCCESS'
+    );
+
 
   if (!successfulPayment) {
-    throw new AppError(
-      400,
-      'Payment has not been completed successfully yet.'
-    );
+    return res.status(202).json({
+      status: 'pending',
+
+      appointmentPaymentStatus:
+        appointment.paymentStatus || 'unpaid',
+    });
   }
 
-  payment.status = 'succeeded';
-  payment.providerPaymentId =
-    successfulPayment.cf_payment_id;
-  await payment.save();
 
-  appointment.paymentStatus = 'paid';
-  await appointment.save();
+ 
+  await settleSuccessfulPayment(
+    payment,
+    successfulPayment.cf_payment_id
+  );
 
-  await maybeGenerateInvoice(appointment.id);
 
-  res.json({
+  return res.json({
     status: 'succeeded',
     appointmentPaymentStatus: 'paid',
   });
 }
 
+
+//customer side
 async function getMyPayments(req, res) {
   const payments = await Payment.findAll({
     where: {
       status: 'succeeded',
     },
-    include: [{
-      model: Appointment,
-      where: {
-        customerId: req.user.id,
+
+    include: [
+      {
+        model: Appointment,
+
+        where: {
+          customerId: req.user.id,
+        },
+
+        include: [Service],
+
+        required: true,
       },
-      include: [Service],
-      required: true,
-    }],
+    ],
+
     order: [['createdAt', 'DESC']],
   });
 
   res.json(payments);
 }
 
+//admin side
 async function getAllPayments(req, res) {
   const payments = await Payment.findAll({
-    include: [{
-      model: Appointment,
-      include: [
-        Service,
-        {
-          model: User,
-          as: 'customer',
-          attributes: ['id', 'name', 'email'],
-        },
-      ],
-      required: true,
-    }],
+    include: [
+      {
+        model: Appointment,
+
+        include: [
+          Service,
+
+          {
+            model: User,
+
+            as: 'customer',
+
+            attributes: [
+              'id',
+              'name',
+              'email',
+            ],
+          },
+        ],
+
+        required: true,
+      },
+    ],
+
     order: [['createdAt', 'DESC']],
   });
 
   res.json(payments);
 }
+
+
 
 module.exports = {
   createCashfreeOrder,
