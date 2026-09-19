@@ -6,7 +6,7 @@ if (user) $('welcome').textContent = `Hi, ${user.name}`;
 async function loadAppointments() {
   try {
     const appts = await api('/appointments/staff/mine');
-    appts.sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`));
+    appts.sort((a, b) => `${b.date}T${b.startTime}`.localeCompare(`${a.date}T${a.startTime}`));
 
     const today = new Date();
     const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;

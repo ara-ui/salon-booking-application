@@ -84,7 +84,7 @@ function sendCancellationNotice({ to, customerName, serviceName, date, startTime
 function sendPasswordResetEmail({ to, name, resetUrl }) {
   return sendMail({
     to,
-    subject: 'Reset your Glow Salon password',
+    subject: 'Reset your Glam Up password',
     html: `
       <p>Hi ${name},</p>
       <p>We received a request to reset your password. Click the link below to choose a new one —

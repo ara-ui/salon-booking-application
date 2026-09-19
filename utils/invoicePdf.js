@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
@@ -38,7 +38,7 @@ function generateInvoicePdf({
 
     doc
       .fontSize(20)
-      .text('Glow Salon - Invoice', { align: 'center' });
+      .text('Glam Up - Invoice', { align: 'center' });
 
     doc.moveDown();
 

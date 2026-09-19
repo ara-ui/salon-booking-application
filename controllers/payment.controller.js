@@ -219,11 +219,21 @@ async function createCashfreeOrder(req, res) {
     throw new AppError(404, 'Customer not found');
   }
 
+
+  /* =========================================================
+     LOCAL PAYMENT RECORD
+     ========================================================= */
+
   const payment = await Payment.create({
     appointmentId: appointment.id,
     amount: appointment.Service.price,
     status: 'pending',
   });
+
+
+  /* =========================================================
+     CASHFREE ORDER
+     ========================================================= */
 
   const cashfreeOrderId =
     `SALON_ORDER_${appointment.id}_${Date.now()}`;
@@ -233,7 +243,17 @@ async function createCashfreeOrder(req, res) {
   ).toISOString();
 
 
-  
+  /*
+   * Cashfree webhook URL and return URL.
+   *
+   * In your Salon .env:
+   *
+   * APP_URL=https://YOUR-SALON-NGROK-URL
+   *
+   * OR:
+   *
+   * CLIENT_URL=http://localhost:3001
+   */
   const appUrl = (
     process.env.APP_URL ||
     process.env.CLIENT_URL ||
@@ -269,7 +289,10 @@ async function createCashfreeOrder(req, res) {
         customer_name: customer.name,
       },
 
-     
+      /*
+       * Cashfree sends payment notifications to this
+       * webhook endpoint.
+       */
       order_meta: {
         notify_url: webhookUrl,
         return_url: returnUrl,
@@ -281,7 +304,10 @@ async function createCashfreeOrder(req, res) {
       response.data || {};
 
 
-   
+    /*
+     * Cashfree must return both values needed by
+     * the browser checkout.
+     */
     if (
       !createdOrder.order_id ||
       !createdOrder.payment_session_id
@@ -312,7 +338,10 @@ async function createCashfreeOrder(req, res) {
     });
 
   } catch (err) {
-   
+    /*
+     * Never leave a local payment stuck in pending when
+     * Cashfree order creation itself failed.
+     */
     if (payment.status !== 'failed') {
       payment.status = 'failed';
       await payment.save();
@@ -322,6 +351,11 @@ async function createCashfreeOrder(req, res) {
   }
 }
 
+
+/* =========================================================
+   VERIFY CASHFREE PAYMENT
+   ========================================================= */
+
 async function verifyCashfreePayment(req, res) {
   const { orderId } = req.body;
 
@@ -330,7 +364,9 @@ async function verifyCashfreePayment(req, res) {
   }
 
 
-
+  /*
+   * Find our local payment using the Cashfree order ID.
+   */
   const payment = await Payment.findOne({
     where: {
       providerOrderId: orderId,
@@ -345,6 +381,9 @@ async function verifyCashfreePayment(req, res) {
   }
 
 
+  /*
+   * Make sure the payment belongs to the logged-in customer.
+   */
   const appointment = await Appointment.findByPk(
     payment.appointmentId
   );
@@ -357,7 +396,10 @@ async function verifyCashfreePayment(req, res) {
   }
 
 
- 
+  /*
+   * Payment remains locked until staff completes the
+   * appointment.
+   */
   if (appointment.status !== 'completed') {
     throw new AppError(
       400,
@@ -366,7 +408,10 @@ async function verifyCashfreePayment(req, res) {
   }
 
 
- 
+  /*
+   * If our database already knows that this payment succeeded,
+   * simply reconcile the appointment and invoice.
+   */
   if (payment.status === 'succeeded') {
     await settleSuccessfulPayment(
       payment,
@@ -383,6 +428,10 @@ async function verifyCashfreePayment(req, res) {
   const cashfree = getCashfree();
 
 
+  /* =========================================================
+     FETCH CASHFREE ORDER
+     ========================================================= */
+
   const orderResult =
     await cashfree.PGFetchOrder(orderId);
 
@@ -390,7 +439,10 @@ async function verifyCashfreePayment(req, res) {
     orderResult.data || {};
 
 
- 
+  /*
+   * Never trust the browser for the payment amount.
+   * Compare Cashfree's order amount with our local amount.
+   */
   if (
     Number(order.order_amount) !==
     Number(payment.amount)
@@ -421,6 +473,9 @@ async function verifyCashfreePayment(req, res) {
   }
 
 
+  /* =========================================================
+     FETCH CASHFREE PAYMENT ATTEMPTS
+     ========================================================= */
 
   const result =
     await cashfree.PGOrderFetchPayments(orderId);
@@ -434,6 +489,13 @@ async function verifyCashfreePayment(req, res) {
     );
 
 
+  /*
+   * Cashfree may still be processing the payment immediately
+   * after checkout.
+   *
+   * Return 202 instead of treating it as a failed payment.
+   * customer.js will retry verification.
+   */
   if (!successfulPayment) {
     return res.status(202).json({
       status: 'pending',
@@ -444,7 +506,10 @@ async function verifyCashfreePayment(req, res) {
   }
 
 
- 
+  /* =========================================================
+     SUCCESSFUL PAYMENT
+     ========================================================= */
+
   await settleSuccessfulPayment(
     payment,
     successfulPayment.cf_payment_id
@@ -458,7 +523,10 @@ async function verifyCashfreePayment(req, res) {
 }
 
 
-//customer side
+/* =========================================================
+   CUSTOMER PAYMENT HISTORY
+   ========================================================= */
+
 async function getMyPayments(req, res) {
   const payments = await Payment.findAll({
     where: {
@@ -485,7 +553,11 @@ async function getMyPayments(req, res) {
   res.json(payments);
 }
 
-//admin side
+
+/* =========================================================
+   ADMIN PAYMENT HISTORY
+   ========================================================= */
+
 async function getAllPayments(req, res) {
   const payments = await Payment.findAll({
     include: [
@@ -519,6 +591,9 @@ async function getAllPayments(req, res) {
 }
 
 
+/* =========================================================
+   EXPORTS
+   ========================================================= */
 
 module.exports = {
   createCashfreeOrder,
