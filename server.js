@@ -1,5 +1,22 @@
 require('dotenv').config();
 
+const { validateEnvironment, applyTimezone } = require('./config/env');
+
+// Fail fast on missing/invalid configuration (strict when NODE_ENV=production)
+// before anything connects to the database or starts listening.
+let env;
+try {
+  env = validateEnvironment();
+} catch (err) {
+  console.error(`Invalid environment configuration: ${err.message}`);
+  process.exit(1);
+}
+env.warnings.forEach((warning) => console.warn(`[config] ${warning}`));
+
+// Make the salon timezone explicit (APP_TIMEZONE, default Asia/Kolkata) so
+// appointment dates/times mean the same thing on any host.
+applyTimezone();
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -10,6 +27,7 @@ const { sequelize, User } = require('./models');
 const swaggerSpec = require('./docs/swagger');
 const { errorHandler } = require('./middleware/error.middleware');
 const { scheduleReminderJob } = require('./utils/reminderCron');
+const { registerLogRedaction } = require('./utils/logRedaction');
 
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
@@ -41,6 +59,8 @@ app.use((req, res, next) => {
   next();
 });
 
+// Keep password-reset tokens (?token=...) out of access logs.
+registerLogRedaction(morgan);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Cashfree webhook must receive the exact raw request body for HMAC

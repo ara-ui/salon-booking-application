@@ -1,6 +1,3 @@
-// Lightweight in-memory rate limiter. This intentionally avoids another
-// dependency for the demo project. It is suitable for a single Node process;
-// a distributed deployment should use a shared store instead.
 
 function createRateLimiter({ windowMs = 15 * 60 * 1000, max = 20, message = 'Too many requests. Please try again later.' } = {}) {
   const buckets = new Map();

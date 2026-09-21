@@ -5,6 +5,10 @@
 -- application with the new payment code.
 --
 -- Do NOT use Sequelize sync({ alter: true }) in production.
+--
+-- If the database was created by DB_SYNC from the CURRENT models, the
+-- appointments.servicePrice column already exists: skip step 1 (its ALTER
+-- would fail with a duplicate column error) and run steps 2 and 3 only.
 
 START TRANSACTION;
 

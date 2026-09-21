@@ -33,9 +33,6 @@ const MAX_RESCHEDULES = 2;
 
 
 
-// Keep Appointment.paymentStatus consistent with the server-side Payment ledger.
-// Completing an appointment must never imply that money was paid. A payment is
-// considered paid only when a Payment row has been server-verified as succeeded.
 async function reconcileAppointmentPaymentStatus(appointment) {
   const successfulPayment = await Payment.findOne({
     where: {
@@ -118,7 +115,7 @@ async function getMyAppointments(req, res) {
       customerId: req.user.id,
     },
     include: [
-      { model: Staff, include: [User] },
+      { model: Staff, include: [{ model: User, attributes: ['id', 'name'] }] },
       { model: Service },
     ],
     order: [
@@ -203,7 +200,7 @@ async function getAllAppointments(req, res) {
       },
       {
         model: Staff,
-        include: [User],
+        include: [{ model: User, attributes: ['id', 'name'] }],
       },
       { model: Service },
     ],
@@ -489,8 +486,6 @@ async function generateCompletionCode(req, res) {
   appointment.completionCodeUsedAt = null;
   await appointment.save();
 
-  // The code is returned only to the authenticated customer who generated it.
-  // Staff never receives it from appointment listing/detail endpoints.
   res.json({
     appointmentId: appointment.id,
     code,

@@ -276,7 +276,7 @@ async function showDetail(id, scroll = true) {
         <div class="detail-item"><small>Staff</small><strong>${escapeHtml(a.Staff?.User?.name || '—')}</strong></div>
         <div class="detail-item"><small>Date</small><strong>${escapeHtml(formatDateLong(a.date))}</strong></div>
         <div class="detail-item"><small>Time</small><strong>${escapeHtml(formatTime12(a.startTime))}</strong></div>
-        <div class="detail-item"><small>Price</small><strong>${fmtMoney(a.Service?.price || 0)}</strong></div>
+        <div class="detail-item"><small>Price</small><strong>${fmtMoney(a.servicePrice ?? a.Service?.price ?? 0)}</strong></div>
         <div class="detail-item"><small>Payment</small><strong>${badge(a.paymentStatus)}</strong></div>
       </div>
       <div id="detailMsg"></div>
@@ -411,7 +411,12 @@ async function payNow(id) {
 
     const cashfree =
       window.Cashfree({
-        mode: 'sandbox',
+        // Same environment as the backend that created this payment session.
+        // Anything other than an explicit 'production' stays on sandbox.
+        mode:
+          order.cashfreeMode === 'production'
+            ? 'production'
+            : 'sandbox',
       });
 
     msg.innerHTML =
@@ -587,7 +592,7 @@ async function startReschedule(id) {
       setMessage('detailMsg', 'Paid appointments cannot be rescheduled online. Please contact the salon.', 'error');
       return;
     }
-    const service = { id: a.serviceId, name: a.Service.name, durationMinutes: a.Service.durationMinutes, price: a.Service.price };
+    const service = { id: a.serviceId, name: a.Service.name, durationMinutes: a.Service.durationMinutes, price: a.servicePrice ?? a.Service.price };
     rescheduleApptId = id;
     rescheduleStaffId = a.staffId;
     openBooking(service, 'reschedule');

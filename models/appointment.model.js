@@ -23,6 +23,14 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
 
+    // Service price frozen at booking time (column added by
+    // migrations/001_payment_hardening.sql). Payments and invoices must use
+    // this, never the live Service.price, which an admin can change later.
+    servicePrice: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,

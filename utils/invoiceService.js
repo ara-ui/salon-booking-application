@@ -84,12 +84,29 @@ async function maybeGenerateInvoice(appointmentId) {
   }
 
   // Otherwise create the invoice record.
-  return Invoice.create({
-    appointmentId: appointment.id,
-    paymentId: payment.id,
-    amount: payment.amount,
-    pdfUrl: `/api/appointments/${appointment.id}/invoice`,
-  });
+  //
+  // Browser verification and the Cashfree webhook can settle the same payment
+  // at the same moment, so both may reach this point. Invoice.appointmentId is
+  // unique: the loser of that race must reuse the winner's invoice instead of
+  // failing with a unique-constraint error.
+  try {
+    return await Invoice.create({
+      appointmentId: appointment.id,
+      paymentId: payment.id,
+      amount: payment.amount,
+      pdfUrl: `/api/appointments/${appointment.id}/invoice`,
+    });
+  } catch (err) {
+    if (err?.name !== 'SequelizeUniqueConstraintError') throw err;
+
+    const created = await Invoice.findOne({
+      where: { appointmentId },
+    });
+
+    if (created) return created;
+
+    throw err;
+  }
 }
 
 module.exports = { maybeGenerateInvoice };

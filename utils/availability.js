@@ -1,13 +1,8 @@
-// Pure helper functions for turning "salon hours + staff hours + service
-// duration + existing bookings" into a list of bookable time slots.
-// Kept dependency-free (no DB calls here) so it's easy to test in isolation.
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 function dayKeyFromDate(dateStr) {
-  // dateStr: 'YYYY-MM-DD'. Appending T00:00:00 (no Z) parses it in local
-  // time instead of UTC, which avoids the classic "date shifts by one day"
-  // bug you get from `new Date('2026-08-29')` in some timezones.
+
   const d = new Date(`${dateStr}T00:00:00`);
   return DAY_KEYS[d.getDay()];
 }
@@ -67,9 +62,6 @@ function intersectRanges(rangesA = [], rangesB = []) {
   return result;
 }
 
-// Given open ranges (minutes) + a service duration, generate candidate slot
-// start times every `stepMinutes` (default 15), each `durationMinutes` long,
-// that fit entirely inside one of the ranges.
 function generateCandidateSlots(ranges, durationMinutes, stepMinutes = 15) {
   const slots = [];
   for (const range of ranges) {
@@ -80,8 +72,6 @@ function generateCandidateSlots(ranges, durationMinutes, stepMinutes = 15) {
   return slots;
 }
 
-// Removes candidate slots that overlap any existing booking.
-// existingBookings: [{ startTime: 'HH:MM', endTime: 'HH:MM' }]
 function removeConflicts(candidateSlots, existingBookings) {
   const booked = existingBookings.map((b) => ({
     start: timeToMinutes(b.startTime),
@@ -93,12 +83,7 @@ function removeConflicts(candidateSlots, existingBookings) {
   );
 }
 
-/**
- * Checks whether a specific [startTime, endTime) slot falls entirely inside
- * hours that are open in BOTH salonHours and staffHours. Reuses
- * intersectRanges so the "must be open in both" rule is defined in exactly
- * one place, shared with getAvailableSlots.
- */
+
 function isSlotWithinOpenHours({ salonHours, staffHours, startTime, endTime }) {
   const openRanges = intersectRanges(salonHours, staffHours);
   const startMin = timeToMinutes(startTime);

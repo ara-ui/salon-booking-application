@@ -73,7 +73,11 @@ For an existing database, run:
 migrations/001_payment_hardening.sql
 ```
 
-before using the new application code.
+before using the new application code. The Appointment model now reads and
+writes `servicePrice`, so the application will fail against an existing
+database that has not been migrated. (If the database was freshly created by
+`DB_SYNC` from the current models, `servicePrice` already exists; see the
+notes at the top of the migration file.)
 
 The migration:
 
@@ -126,6 +130,8 @@ Before moving from Sandbox to Production:
 - set `CASHFREE_ENVIRONMENT=PRODUCTION`;
 - set `NODE_ENV=production`;
 - use an HTTPS `APP_URL`;
+- set `CLIENT_URL` (used to build password-reset links);
+- leave `APP_TIMEZONE` unset for the default `Asia/Kolkata`, or set another IANA timezone; the app applies it at startup so appointment times, cancellation windows and reminders use the salon's clock, not the host's;
 - configure the production Cashfree webhook;
 - run the database migration;
 - set a strong random `JWT_SECRET`;
@@ -137,7 +143,8 @@ Before moving from Sandbox to Production:
 - verify duplicate webhook delivery does not create a duplicate payment/invoice;
 - verify a failed payment can be retried;
 - verify an expired order creates a fresh order;
-- verify a service-price change after booking does not change the booked appointment's payment amount.
+- verify a service-price change after booking does not change the booked appointment's payment amount;
+- confirm the checkout opens in production mode (the backend returns `cashfreeMode` from `CASHFREE_ENVIRONMENT`; the browser SDK follows it).
 
 ## Important credential rule
 

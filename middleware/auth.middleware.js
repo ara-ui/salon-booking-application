@@ -38,10 +38,7 @@ async function authenticate(req, res, next) {
   }
 }
 
-/**
- * Usage: requireRole('admin') or requireRole('admin', 'staff')
- * Must run AFTER authenticate.
- */
+
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {

@@ -313,6 +313,7 @@ async function bookAppointment(req, res) {
       customerId: customer.id,
       staffId: staff.id,
       serviceId,
+      servicePrice: service.price,
       date,
       startTime,
       endTime,

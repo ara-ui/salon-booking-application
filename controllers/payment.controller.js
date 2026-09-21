@@ -4,6 +4,8 @@ const { AppError } = require('../middleware/error.middleware');
 
 const { getCashfree } = require('../utils/cashfreeClient');
 
+const { getCashfreeEnvironment } = require('../config/env');
+
 const { maybeGenerateInvoice } = require('../utils/invoiceService');
 
 const {
@@ -33,6 +35,24 @@ async function reconcileAppointmentPaymentStatus(appointment) {
   }
 
   return successfulPayment;
+}
+
+
+/*
+ * The amount owed is the price frozen on the appointment at booking time,
+ * never the live Service.price (an admin may have changed it since).
+ *
+ * migrations/001_payment_hardening.sql backfills existing rows. If a row is
+ * still NULL (e.g. booked by old code between the migration and this deploy),
+ * freeze it now from the service, once, so it is stable from here on.
+ */
+async function getFrozenServicePrice(appointment) {
+  if (appointment.servicePrice == null) {
+    appointment.servicePrice = appointment.Service.price;
+    await appointment.save();
+  }
+
+  return appointment.servicePrice;
 }
 
 
@@ -89,6 +109,12 @@ async function createCashfreeOrder(req, res) {
   }
 
   const cashfree = getCashfree();
+
+  /*
+   * The browser SDK must run in the same environment as the backend that
+   * created the payment session: 'sandbox' or 'production'.
+   */
+  const cashfreeMode = getCashfreeEnvironment().toLowerCase();
 
   /*
    * Reuse an existing pending Cashfree order only when the
@@ -159,6 +185,7 @@ async function createCashfreeOrder(req, res) {
           paymentSessionId:
             existingOrder.payment_session_id,
           paymentId: existingPendingPayment.id,
+          cashfreeMode,
         });
       }
 
@@ -224,9 +251,11 @@ async function createCashfreeOrder(req, res) {
      LOCAL PAYMENT RECORD
      ========================================================= */
 
+  const amount = await getFrozenServicePrice(appointment);
+
   const payment = await Payment.create({
     appointmentId: appointment.id,
-    amount: appointment.Service.price,
+    amount,
     status: 'pending',
   });
 
@@ -272,7 +301,7 @@ async function createCashfreeOrder(req, res) {
       order_id: cashfreeOrderId,
 
       order_amount:
-        Number(appointment.Service.price),
+        Number(amount),
 
       order_currency: 'INR',
 
@@ -335,6 +364,8 @@ async function createCashfreeOrder(req, res) {
         createdOrder.payment_session_id,
 
       paymentId: payment.id,
+
+      cashfreeMode,
     });
 
   } catch (err) {

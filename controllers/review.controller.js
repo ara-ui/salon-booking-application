@@ -26,9 +26,6 @@ async function createReview(req, res) {
   res.status(201).json(review);
 }
 
-// Supports ?serviceId= or ?staffId= (per the roadmap's "GET /services/:id/reviews
-// or /staff/:id/reviews" — implemented as query filters on one endpoint to
-// keep the review routes in a single file).
 async function listReviews(req, res) {
   const { serviceId, staffId } = req.query;
   const where = {};
@@ -52,9 +49,7 @@ async function respondToReview(req, res) {
   const review = await Review.findByPk(req.params.id);
   if (!review) throw new AppError(404, 'Review not found');
 
-  // Ownership check — only the staff member the review is about (or an
-  // admin) can respond. Prevents unrelated staff from replying to reviews
-  // that aren't theirs.
+
   const isAssignedStaff = req.user.role === 'staff' && review.staffId === req.user.staffId;
   if (!isAssignedStaff && req.user.role !== 'admin') {
     throw new AppError(403, 'You can only respond to reviews about your own appointments');

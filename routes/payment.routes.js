@@ -18,7 +18,7 @@ const paymentLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 20 });
  * /payments/checkout:
  *   post:
  *     summary: Create a Cashfree Sandbox order for an appointment (customer)
- *     description: Uses the appointment's actual service price. Returns a paymentSessionId for the frontend to open the embedded Cashfree checkout modal.
+ *     description: Uses the service price frozen on the appointment at booking time. Returns a paymentSessionId for the frontend to open the embedded Cashfree checkout modal, and cashfreeMode ("sandbox" or "production") for initialising the browser SDK.
  *     tags: [Payments]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -40,6 +40,7 @@ const paymentLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 20 });
  *                 orderId: { type: string }
  *                 paymentSessionId: { type: string }
  *                 paymentId: { type: integer }
+ *                 cashfreeMode: { type: string, enum: [sandbox, production] }
  *       400: { description: Already paid, or missing appointmentId }
  *       403: { description: Not your appointment }
  *       404: { description: Appointment not found }

@@ -8,9 +8,12 @@ const staffInclude = [
   { model: Service, through: { attributes: [] } },
 ];
 
+
+const publicUserAttributes = ['id', 'name', 'isActive'];
+
 async function listStaff(req, res) {
   const staff = await Staff.findAll({
-    include: [{ model: User, where: { isActive: true }, attributes: ['id', 'name', 'email', 'isActive'] }, { model: Service, where: { isActive: true }, through: { attributes: [] }, required: false }],
+    include: [{ model: User, where: { isActive: true }, attributes: publicUserAttributes }, { model: Service, where: { isActive: true }, through: { attributes: [] }, required: false }],
     order: [[User, 'name', 'ASC']],
   });
   res.json(staff);
@@ -25,7 +28,12 @@ async function listAllStaff(req, res) {
 }
 
 async function getStaff(req, res) {
-  const staff = await Staff.findByPk(req.params.id, { include: staffInclude });
+  const staff = await Staff.findByPk(req.params.id, {
+    include: [
+      { model: User, attributes: publicUserAttributes },
+      { model: Service, through: { attributes: [] } },
+    ],
+  });
   if (!staff || (!staff.User?.isActive && req.user?.role !== 'admin')) {
     throw new AppError(404, 'Staff member not found');
   }
