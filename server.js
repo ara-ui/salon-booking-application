@@ -75,6 +75,9 @@ app.use(express.json({ limit: '100kb' }));
 
 // Frontend — plain HTML/CSS/JS, 3 role-based pages
 app.use(express.static('public'));
+app.get('/', (req, res) => {
+  res.redirect('/html/index.html');
+});
 
 // Swagger docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
