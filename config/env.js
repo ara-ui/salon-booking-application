@@ -106,14 +106,6 @@ function validateEnvironment() {
     );
   }
 
-  if (
-    nodeEnv === 'production' &&
-    String(process.env.CASHFREE_ENVIRONMENT || 'SANDBOX').toUpperCase() !== 'PRODUCTION'
-  ) {
-    throw new Error(
-      'CASHFREE_ENVIRONMENT must be PRODUCTION when NODE_ENV=production'
-    );
-  }
 
   const port =
     Number(process.env.PORT || 3000);
