@@ -95,22 +95,39 @@ test('production refuses to start with a missing core variable', () => {
   }
 });
 
-test('production rejects the placeholder JWT secret, missing/non-HTTPS APP_URL and sandbox Cashfree', () => {
+test('production rejects the placeholder JWT secret and missing/non-HTTPS APP_URL', () => {
   const bad = [
     [{ JWT_SECRET: 'change_this_to_a_long_random_string' }, /JWT_SECRET/],
     [{ APP_URL: '' }, /APP_URL is required/],
     [{ APP_URL: 'http://glamup.example.com' }, /HTTPS/],
-    [{ CASHFREE_ENVIRONMENT: 'SANDBOX' }, /CASHFREE_ENVIRONMENT must be PRODUCTION/],
-    [{ CASHFREE_ENVIRONMENT: '' }, /CASHFREE_ENVIRONMENT must be PRODUCTION/],
   ];
 
   for (const [override, message] of bad) {
     assert.throws(
-      () => withEnv({ ...VALID_PRODUCTION, ...override }, () => validateEnvironment()),
+      () =>
+        withEnv(
+          { ...VALID_PRODUCTION, ...override },
+          () => validateEnvironment()
+        ),
       message
     );
   }
 });
+
+test('production allows Cashfree SANDBOX for demo deployments', () => {
+  const env = withEnv(
+    {
+      ...VALID_PRODUCTION,
+      CASHFREE_ENVIRONMENT: 'SANDBOX',
+    },
+    () => validateEnvironment()
+  );
+
+  assert.equal(env.nodeEnv, 'production');
+  assert.equal(env.cashfreeEnvironment, 'SANDBOX');
+  assert.deepEqual(env.warnings, []);
+});
+
 
 test('invalid PORT and invalid APP_TIMEZONE are rejected', () => {
   for (const port of ['abc', '0', '70000', '3000.5']) {
